@@ -1,0 +1,25 @@
+{
+  "name": "docuready",
+  "version": "1.0.0",
+  "description": "DocuReady — Intelligent Pre-Submission Application Auditing System",
+  "scripts": {
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "client": "npm --prefix client run dev",
+    "build:client": "npm --prefix client run build",
+    "dev": "concurrently \"node server/index.js\" \"npm --prefix client run dev\"",
+    "test": "node server/test/direct-audit.test.js"
+  },
+  "keywords": [
+    "audit",
+    "ocr",
+    "verification",
+    "tesseract",
+    "docuready"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

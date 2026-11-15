@@ -1,0 +1,50 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 648 >>
+stream
+BT
+/F1 12 Tf
+20 TL
+50 740 Td
+(GOVERNMENT OF INDIA) Tj T*
+(UNIQUE IDENTIFICATION AUTHORITY OF INDIA) Tj T*
+(AADHAAR - MERA AADHAAR, MERI PEHCHAN) Tj T*
+(-------------------------------------------------------) Tj T*
+(Candidate Name: Rahul Sharma) Tj T*
+(Father's Name: Suresh Sharma) Tj T*
+(Date of Birth: 12/05/2005) Tj T*
+(Gender: MALE) Tj T*
+(Aadhaar Number: XXXX-XXXX-9912) Tj T*
+(Address: H.No 42, Green Park Extension, New Delhi - 110016) Tj T*
+(Date of Issue: 10/01/2021) Tj T*
+(Status: ACTIVE / VERIFIED) Tj T*
+(-------------------------------------------------------) Tj T*
+([SYNTHETIC DEMO DOCUMENT FOR EVALUATION PURPOSES ONLY]) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000939 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1009
+%%EOF
