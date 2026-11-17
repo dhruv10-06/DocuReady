@@ -5,16 +5,33 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const auditRoutes = require('./routes/auditRoutes');
+const { cleanupOrphanUploads } = require('./routes/auditRoutes');
 const { ensureSampleFiles } = require('./services/sampleFileGenerator');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS for client
+// Configurable CORS protection
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [
+      'http://localhost:5173',
+      'http://localhost:5000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5000',
+    ];
+
 app.use(cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    // Permit local scripts, curl, same-origin, or whitelisted frontend origins
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    return callback(new Error('Cross-Origin Request Blocked: Origin not permitted by DocuReady CORS policy.'));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Audit-Token'],
+  credentials: true,
 }));
 
 // Body parsers
@@ -23,6 +40,9 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Ensure public sample directory exists and generate demo files
 ensureSampleFiles();
+
+// Startup cleanup: Purge any orphaned upload directories left from previous process crashes
+cleanupOrphanUploads();
 
 // Serve static demo sample files
 app.use('/sample-docs', express.static(path.join(__dirname, 'public', 'sample-docs')));
@@ -51,11 +71,14 @@ if (fs.existsSync(clientDistPath)) {
   });
 }
 
-// Error handling middleware
+// Error handling middleware (sanitizes internal file paths and stack traces)
 app.use((err, req, res, next) => {
-  console.error('Unhandled server error:', err);
+  console.error('Unhandled server error:', err.message || err);
+  const safeMessage = typeof err.message === 'string'
+    ? err.message.replace(/([a-zA-Z]:\\[^"'\n\r]+|\/[a-zA-Z0-9_\-\/]+)/g, '[internal path]')
+    : 'An internal server error occurred.';
   res.status(err.status || 500).json({
-    error: err.message || 'An internal server error occurred.',
+    error: safeMessage,
   });
 });
 

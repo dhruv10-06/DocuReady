@@ -11,9 +11,20 @@ const { APPLICATION_CATEGORIES, DOCUMENT_CATEGORIES } = require('../data/categor
 const { SYNTHETIC_DEMO_CASES } = require('../data/sampleData');
 const { processDocumentFile } = require('../services/ocrService');
 const { performAuditVerification } = require('../services/verificationEngine');
+const {
+  generateCreatorToken,
+  hashToken,
+  isValidUUID,
+  validateFileSignature,
+  sanitizeDocument,
+  sanitizeAudit,
+} = require('../services/securityService');
 
-// In-memory audit storage (for hackathon demo / privacy-preserving transient store)
+// In-memory audit storage (privacy-preserving transient store with TTL)
 const auditStore = new Map();
+
+// 2-hour Time-To-Live (TTL) for audit sessions
+const AUDIT_TTL_MS = 2 * 60 * 60 * 1000;
 
 // Multer storage configuration for temporary files
 const uploadsBaseDir = path.join(__dirname, '..', 'uploads');
@@ -23,7 +34,10 @@ if (!fs.existsSync(uploadsBaseDir)) {
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const auditId = req.params.id || 'default';
+    const auditId = req.params.id;
+    if (!isValidUUID(auditId)) {
+      return cb(new Error('Invalid audit identifier format.'));
+    }
     const auditDir = path.join(uploadsBaseDir, auditId);
     if (!fs.existsSync(auditDir)) {
       fs.mkdirSync(auditDir, { recursive: true });
@@ -32,17 +46,21 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
   },
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit per file
   fileFilter: (req, file, cb) => {
-    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-    if (allowed.includes(file.mimetype) || /\.(pdf|jpg|jpeg|png)$/i.test(file.originalname)) {
+    const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    const hasAllowedExt = /\.(pdf|jpg|jpeg|png)$/i.test(file.originalname);
+    const hasAllowedMime = allowedMimes.includes(file.mimetype);
+
+    // Require both allowed extension and allowed MIME type
+    if (hasAllowedExt && hasAllowedMime) {
       cb(null, true);
     } else {
       cb(new Error('Unsupported file format. Please upload PDF, JPG, or PNG files only.'));
@@ -51,8 +69,90 @@ const upload = multer({
 });
 
 /**
+ * Authorization Middleware: Enforce creator-token ownership on audit operations
+ */
+function requireAuditOwnership(req, res, next) {
+  const auditId = req.params.id;
+  if (!isValidUUID(auditId)) {
+    return res.status(400).json({ error: 'Invalid audit identifier format.' });
+  }
+
+  const audit = auditStore.get(auditId);
+  if (!audit) {
+    return res.status(404).json({ error: 'Audit session not found.' });
+  }
+
+  const token = req.headers['x-audit-token'] || (req.headers['authorization']?.replace(/^Bearer\s+/i, ''));
+  if (!token) {
+    return res.status(401).json({ error: 'Authorization required. Missing X-Audit-Token header.' });
+  }
+
+  const tokenHash = hashToken(token);
+  if (audit.creatorTokenHash !== tokenHash) {
+    return res.status(403).json({ error: 'Access denied. You do not have permission to access or modify this audit session.' });
+  }
+
+  // Update activity timestamp for TTL renewal
+  audit.lastAccessedAt = Date.now();
+  req.audit = audit;
+  next();
+}
+
+/**
+ * Clean up expired audit sessions and their uploaded files (2-hour TTL)
+ */
+function cleanupExpiredAudits() {
+  const now = Date.now();
+  for (const [auditId, audit] of auditStore.entries()) {
+    const lastActive = audit.lastAccessedAt || audit.createdAtTimestamp || 0;
+    if (now - lastActive > AUDIT_TTL_MS) {
+      const auditDir = path.join(uploadsBaseDir, auditId);
+      if (fs.existsSync(auditDir)) {
+        try {
+          fs.rmSync(auditDir, { recursive: true, force: true });
+        } catch (e) {
+          console.error(`[Cleanup] Error removing expired upload dir for ${auditId}:`, e.message);
+        }
+      }
+      auditStore.delete(auditId);
+      console.log(`[Cleanup] Purged expired audit session: ${auditId}`);
+    }
+  }
+}
+
+// Background cleanup interval (runs every 5 minutes, unrefed to avoid holding test process)
+const cleanerInterval = setInterval(cleanupExpiredAudits, 5 * 60 * 1000);
+if (cleanerInterval.unref) cleanerInterval.unref();
+
+/**
+ * Startup cleaner: Remove orphaned directories in uploadsBaseDir left from prior server runs
+ */
+function cleanupOrphanUploads() {
+  if (!fs.existsSync(uploadsBaseDir)) return;
+  try {
+    const entries = fs.readdirSync(uploadsBaseDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const folderName = entry.name;
+        if (!auditStore.has(folderName)) {
+          const orphanDir = path.join(uploadsBaseDir, folderName);
+          try {
+            fs.rmSync(orphanDir, { recursive: true, force: true });
+            console.log(`[Startup Cleanup] Removed orphan upload directory: ${folderName}`);
+          } catch (e) {
+            console.error(`[Startup Cleanup] Failed to remove ${folderName}:`, e.message);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Startup Cleanup] Error reading uploads base dir:', err.message);
+  }
+}
+
+/**
  * GET /api/categories
- * List application categories & document types
+ * List application categories & document types (public)
  */
 router.get('/categories', (req, res) => {
   res.json({
@@ -63,7 +163,7 @@ router.get('/categories', (req, res) => {
 
 /**
  * GET /api/sample-docs
- * List pre-generated synthetic files
+ * List pre-generated synthetic files (public metadata)
  */
 router.get('/sample-docs', (req, res) => {
   const sampleDir = path.join(__dirname, '..', 'public', 'sample-docs');
@@ -83,26 +183,52 @@ router.get('/sample-docs', (req, res) => {
 
 /**
  * GET /api/audits
- * List all current audits (Dashboard)
+ * Global audit listing is disabled to prevent visitor enumeration
  */
 router.get('/audits', (req, res) => {
-  const list = Array.from(auditStore.values()).map(a => ({
-    id: a.id,
-    applicantName: a.applicantName,
-    category: a.category,
-    createdAt: a.createdAt,
-    documentsCount: a.documents.length,
-    status: a.report?.overallStatus || 'IN_PROGRESS',
-    statusBadgeText: a.report?.statusBadgeText || 'IN PROGRESS',
-    statusColor: a.report?.statusColor || 'blue',
-    readinessScore: a.report?.readinessScore ?? null,
-  }));
-  res.json(list);
+  res.json([]);
+});
+
+/**
+ * POST /api/audits/my-audits
+ * Retrieve only the audits owned by the requesting client session
+ */
+router.post('/audits/my-audits', (req, res) => {
+  try {
+    const requested = req.body.audits || [];
+    if (!Array.isArray(requested)) {
+      return res.status(400).json({ error: 'Invalid payload: audits array expected.' });
+    }
+
+    const ownedList = [];
+    for (const item of requested) {
+      if (!item || !isValidUUID(item.id) || !item.token) continue;
+      const audit = auditStore.get(item.id);
+      if (audit && audit.creatorTokenHash === hashToken(item.token)) {
+        audit.lastAccessedAt = Date.now();
+        ownedList.push({
+          id: audit.id,
+          applicantName: audit.applicantName,
+          category: audit.category,
+          createdAt: audit.createdAt,
+          documentsCount: (audit.documents || []).length,
+          status: audit.report?.overallStatus || 'IN_PROGRESS',
+          statusBadgeText: audit.report?.statusBadgeText || 'IN PROGRESS',
+          statusColor: audit.report?.statusColor || 'blue',
+          readinessScore: audit.report?.readinessScore ?? null,
+        });
+      }
+    }
+
+    res.json(ownedList);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
  * POST /api/audits
- * Create new audit session
+ * Create a new audit session with a unique creator token
  */
 router.post('/audits', (req, res) => {
   try {
@@ -110,18 +236,30 @@ router.post('/audits', (req, res) => {
     const catConfig = APPLICATION_CATEGORIES[category] || APPLICATION_CATEGORIES.SCHOLARSHIP;
 
     const auditId = uuidv4();
+    const creatorToken = generateCreatorToken();
+    const creatorTokenHash = hashToken(creatorToken);
+    const now = Date.now();
+
     const newAudit = {
       id: auditId,
+      creatorTokenHash,
       category: catConfig.id,
       applicantName: applicantName?.trim() || 'Applicant',
       applicationNumber: applicationNumber?.trim() || '',
       createdAt: new Date().toISOString(),
+      createdAtTimestamp: now,
+      lastAccessedAt: now,
       documents: [],
       report: null,
     };
 
     auditStore.set(auditId, newAudit);
-    res.status(201).json(newAudit);
+
+    // Return sanitized audit plus the single-issue creatorToken for the creator's browser storage
+    res.status(201).json({
+      ...sanitizeAudit(newAudit),
+      creatorToken,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -129,26 +267,24 @@ router.post('/audits', (req, res) => {
 
 /**
  * POST /api/audits/:id/demo
- * Load synthetic demo case into audit session
+ * Load synthetic demo benchmark into this visitor's isolated session
  */
-router.post('/audits/:id/demo', (req, res) => {
+router.post('/audits/:id/demo', requireAuditOwnership, (req, res) => {
   try {
-    const audit = auditStore.get(req.params.id);
-    if (!audit) {
-      return res.status(404).json({ error: 'Audit session not found.' });
-    }
-
+    const audit = req.audit;
     const demoData = SYNTHETIC_DEMO_CASES.RAHUL_SHARMA;
+
     audit.applicantName = demoData.applicantName;
     audit.category = demoData.category;
-    // Deep clone documents
+    // Deep clone documents so each visitor has an isolated instance
     audit.documents = JSON.parse(JSON.stringify(demoData.documents));
 
     // Automatically perform audit verification
     audit.report = performAuditVerification(audit);
+    audit.lastAccessedAt = Date.now();
 
     auditStore.set(audit.id, audit);
-    res.json(audit);
+    res.json(sanitizeAudit(audit));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -156,15 +292,11 @@ router.post('/audits/:id/demo', (req, res) => {
 
 /**
  * POST /api/audits/:id/upload
- * Upload document(s) and run extraction
+ * Upload document(s) with strict MIME, extension, and magic byte validation
  */
-router.post('/audits/:id/upload', upload.array('documents', 10), async (req, res) => {
+router.post('/audits/:id/upload', requireAuditOwnership, upload.array('documents', 10), async (req, res) => {
   try {
-    const audit = auditStore.get(req.params.id);
-    if (!audit) {
-      return res.status(404).json({ error: 'Audit session not found.' });
-    }
-
+    const audit = req.audit;
     const docCategory = req.body.docCategory || 'IDENTITY_PROOF';
     const uploadedFiles = req.files || [];
 
@@ -175,6 +307,16 @@ router.post('/audits/:id/upload', upload.array('documents', 10), async (req, res
     const processedDocs = [];
 
     for (const file of uploadedFiles) {
+      // Validate magic bytes to prevent forged extensions / MIME spoofing
+      const isSignatureValid = validateFileSignature(file.path, file.mimetype);
+      if (!isSignatureValid) {
+        // Immediately unlink the rejected file
+        try { fs.unlinkSync(file.path); } catch (e) {}
+        return res.status(400).json({
+          error: `File signature verification failed for "${file.originalname}". The actual file content does not match its claimed format (${file.mimetype}).`,
+        });
+      }
+
       const docId = uuidv4();
       
       // Process file through OCR / PDF extraction
@@ -200,15 +342,16 @@ router.post('/audits/:id/upload', upload.array('documents', 10), async (req, res
 
     // Invalidate report until re-verification
     audit.report = null;
+    audit.lastAccessedAt = Date.now();
     auditStore.set(audit.id, audit);
 
     res.json({
       message: `${processedDocs.length} document(s) uploaded and parsed.`,
-      documents: audit.documents,
-      newDocuments: processedDocs,
+      documents: audit.documents.map(sanitizeDocument),
+      newDocuments: processedDocs.map(sanitizeDocument),
     });
   } catch (err) {
-    console.error('Upload handling error:', err);
+    console.error('Upload handling error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -217,13 +360,9 @@ router.post('/audits/:id/upload', upload.array('documents', 10), async (req, res
  * PUT /api/audits/:id/documents/:docId
  * User review and manual correction of extracted details
  */
-router.put('/audits/:id/documents/:docId', (req, res) => {
+router.put('/audits/:id/documents/:docId', requireAuditOwnership, (req, res) => {
   try {
-    const audit = auditStore.get(req.params.id);
-    if (!audit) {
-      return res.status(404).json({ error: 'Audit session not found.' });
-    }
-
+    const audit = req.audit;
     const doc = audit.documents.find(d => d.id === req.params.docId);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found in audit.' });
@@ -251,18 +390,17 @@ router.put('/audits/:id/documents/:docId', (req, res) => {
       issueDate: issueDate !== undefined ? issueDate : doc.extractedData.issueDate,
       expiryDate: expiryDate !== undefined ? expiryDate : doc.extractedData.expiryDate,
       authority: authority !== undefined ? authority : doc.extractedData.authority,
-      isReadable: true, // User manual intervention makes it readable
+      isReadable: true,
     };
 
     doc.isUserVerified = true;
-
-    // Reset report since data changed
     audit.report = null;
+    audit.lastAccessedAt = Date.now();
     auditStore.set(audit.id, audit);
 
     res.json({
       message: 'Document details updated and verified by user.',
-      document: doc,
+      document: sanitizeDocument(doc),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -271,15 +409,11 @@ router.put('/audits/:id/documents/:docId', (req, res) => {
 
 /**
  * DELETE /api/audits/:id/documents/:docId
- * Remove a specific document
+ * Remove a specific document and its physical disk file
  */
-router.delete('/api/audits/:id/documents/:docId', (req, res) => {
+router.delete('/audits/:id/documents/:docId', requireAuditOwnership, (req, res) => {
   try {
-    const audit = auditStore.get(req.params.id);
-    if (!audit) {
-      return res.status(404).json({ error: 'Audit session not found.' });
-    }
-
+    const audit = req.audit;
     const docIndex = audit.documents.findIndex(d => d.id === req.params.docId);
     if (docIndex === -1) {
       return res.status(404).json({ error: 'Document not found.' });
@@ -296,9 +430,13 @@ router.delete('/api/audits/:id/documents/:docId', (req, res) => {
 
     audit.documents.splice(docIndex, 1);
     audit.report = null;
+    audit.lastAccessedAt = Date.now();
     auditStore.set(audit.id, audit);
 
-    res.json({ message: 'Document removed.', documents: audit.documents });
+    res.json({
+      message: 'Document removed.',
+      documents: audit.documents.map(sanitizeDocument),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -306,17 +444,14 @@ router.delete('/api/audits/:id/documents/:docId', (req, res) => {
 
 /**
  * POST /api/audits/:id/verify
- * Execute cross-document verification and generate audit report
+ * Execute cross-document verification engine
  */
-router.post('/audits/:id/verify', (req, res) => {
+router.post('/audits/:id/verify', requireAuditOwnership, (req, res) => {
   try {
-    const audit = auditStore.get(req.params.id);
-    if (!audit) {
-      return res.status(404).json({ error: 'Audit session not found.' });
-    }
-
+    const audit = req.audit;
     const report = performAuditVerification(audit);
     audit.report = report;
+    audit.lastAccessedAt = Date.now();
     auditStore.set(audit.id, audit);
 
     res.json({
@@ -324,31 +459,27 @@ router.post('/audits/:id/verify', (req, res) => {
       report,
     });
   } catch (err) {
-    console.error('Audit verification execution error:', err);
+    console.error('Audit verification execution error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 /**
  * GET /api/audits/:id
- * Retrieve full audit details
+ * Retrieve full audit details (sanitized, requires creator token)
  */
-router.get('/audits/:id', (req, res) => {
-  const audit = auditStore.get(req.params.id);
-  if (!audit) {
-    return res.status(404).json({ error: 'Audit session not found.' });
-  }
-  res.json(audit);
+router.get('/audits/:id', requireAuditOwnership, (req, res) => {
+  res.json(sanitizeAudit(req.audit));
 });
 
 /**
  * DELETE /api/audits/:id
  * Delete audit session and permanently remove all uploaded files
  */
-router.delete('/audits/:id', (req, res) => {
+router.delete('/audits/:id', requireAuditOwnership, (req, res) => {
   try {
     const auditId = req.params.id;
-    const audit = auditStore.get(auditId);
+    const audit = req.audit;
 
     // Remove upload folder
     const auditDir = path.join(uploadsBaseDir, auditId);
@@ -374,10 +505,13 @@ router.delete('/audits/:id', (req, res) => {
       message: `Audit session ${auditId} and all associated temporary files have been permanently wiped.`,
     });
   } catch (err) {
-    console.error('Delete audit error:', err);
+    console.error('Delete audit error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 module.exports = router;
-
+module.exports.auditStore = auditStore;
+module.exports.AUDIT_TTL_MS = AUDIT_TTL_MS;
+module.exports.cleanupExpiredAudits = cleanupExpiredAudits;
+module.exports.cleanupOrphanUploads = cleanupOrphanUploads;
