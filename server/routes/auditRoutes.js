@@ -169,10 +169,25 @@ router.get('/sample-docs', (req, res) => {
   const sampleDir = path.join(__dirname, '..', 'public', 'sample-docs');
   let files = [];
   if (fs.existsSync(sampleDir)) {
-    files = fs.readdirSync(sampleDir).map(filename => ({
-      filename,
-      url: `/sample-docs/${filename}`,
-    }));
+    files = fs.readdirSync(sampleDir).map(filename => {
+      const ext = path.extname(filename).toLowerCase();
+      let mimeType = 'application/octet-stream';
+      if (ext === '.pdf') mimeType = 'application/pdf';
+      else if (ext === '.png') mimeType = 'image/png';
+      else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
+
+      let docCategory = 'OTHER';
+      if (filename.includes('Aadhaar')) docCategory = 'IDENTITY_PROOF';
+      else if (filename.includes('Marksheet')) docCategory = 'MARKSHEET';
+      else if (filename.includes('Income')) docCategory = 'INCOME_CERTIFICATE';
+
+      return {
+        filename,
+        mimeType,
+        docCategory,
+        url: `/sample-docs/${filename}`,
+      };
+    });
   }
   res.json({
     scenario: 'Rahul Sharma Synthetic Benchmark',

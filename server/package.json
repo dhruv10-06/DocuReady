@@ -9,7 +9,8 @@
     "test:e2e": "node test/e2e-audit.test.js",
     "test:security": "node test/security.test.js",
     "test:content": "node test/content-validation.test.js",
-    "test:all": "node test/direct-audit.test.js && node test/e2e-audit.test.js && node test/security.test.js && node test/content-validation.test.js"
+    "test:sample": "node test/sample-docs.test.js",
+    "test:all": "node test/direct-audit.test.js && node test/e2e-audit.test.js && node test/security.test.js && node test/content-validation.test.js && node test/sample-docs.test.js"
   },
   "keywords": [],
   "author": "",

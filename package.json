@@ -15,7 +15,8 @@
     "test:persistence": "node server/test/persistence.test.js",
     "test:journey": "node server/test/journey.test.js",
     "test:content": "node server/test/content-validation.test.js",
-    "test:all": "node server/test/direct-audit.test.js && node server/test/e2e-audit.test.js && node server/test/security.test.js && node server/test/persistence.test.js && node server/test/journey.test.js && node server/test/content-validation.test.js"
+    "test:sample": "node server/test/sample-docs.test.js",
+    "test:all": "node server/test/direct-audit.test.js && node server/test/e2e-audit.test.js && node server/test/security.test.js && node server/test/persistence.test.js && node server/test/journey.test.js && node server/test/content-validation.test.js && node server/test/sample-docs.test.js"
   },
   "keywords": [
     "audit",
