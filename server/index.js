@@ -49,36 +49,79 @@ ensureSampleFiles();
 // Startup cleanup: Purge any orphaned upload directories left from previous process crashes
 cleanupOrphanUploads();
 
+const SAMPLE_ALIASES = {
+  'sample-aadhaar.pdf': 'Synthetic_Aadhaar_Rahul_Sharma.pdf',
+  'sample-aadhaar.png': 'Synthetic_Aadhaar_Rahul_Sharma.png',
+  'sample-aadhaar.jpg': 'Synthetic_Aadhaar_Rahul_Sharma.jpg',
+  'sample-marksheet.pdf': 'Synthetic_Class_XII_Marksheet_Rahul.pdf',
+  'sample-marksheet.png': 'Synthetic_Class_XII_Marksheet_Rahul.png',
+  'sample-marksheet.jpg': 'Synthetic_Class_XII_Marksheet_Rahul.jpg',
+  'sample-income-certificate.pdf': 'Synthetic_Income_Certificate_Rahul.pdf',
+  'sample-income-certificate.png': 'Synthetic_Income_Certificate_Rahul.png',
+  'sample-income-certificate.jpg': 'Synthetic_Income_Certificate_Rahul.jpg',
+  'Synthetic_Aadhaar_Rahul_Sharma.pdf': 'sample-aadhaar.pdf',
+  'Synthetic_Aadhaar_Rahul_Sharma.png': 'sample-aadhaar.png',
+  'Synthetic_Aadhaar_Rahul_Sharma.jpg': 'sample-aadhaar.jpg',
+  'Synthetic_Class_XII_Marksheet_Rahul.pdf': 'sample-marksheet.pdf',
+  'Synthetic_Class_XII_Marksheet_Rahul.png': 'sample-marksheet.png',
+  'Synthetic_Class_XII_Marksheet_Rahul.jpg': 'sample-marksheet.jpg',
+  'Synthetic_Income_Certificate_Rahul.pdf': 'sample-income-certificate.pdf',
+  'Synthetic_Income_Certificate_Rahul.png': 'sample-income-certificate.png',
+  'Synthetic_Income_Certificate_Rahul.jpg': 'sample-income-certificate.jpg',
+};
+
+function resolveSampleDoc(filename, baseDir) {
+  const safeFilename = path.basename(filename);
+  const directPath = path.join(baseDir, safeFilename);
+  if (fs.existsSync(directPath)) {
+    return { filePath: directPath, clientFilename: safeFilename };
+  }
+  const aliasName = SAMPLE_ALIASES[safeFilename];
+  if (aliasName) {
+    const aliasPath = path.join(baseDir, aliasName);
+    if (fs.existsSync(aliasPath)) {
+      return { filePath: aliasPath, clientFilename: safeFilename };
+    }
+  }
+  return null;
+}
+
+function getSampleMimeType(filename) {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === '.pdf') return 'application/pdf';
+  if (ext === '.png') return 'image/png';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  return 'application/octet-stream';
+}
+
 // Dedicated sample document download endpoint: sets Content-Disposition: attachment for reliable cross-origin downloads
 app.get('/sample-docs/download/:filename', (req, res) => {
-  const { filename } = req.params;
-  const safeFilename = path.basename(filename);
-  const filePath = path.join(__dirname, 'public', 'sample-docs', safeFilename);
-  if (!fs.existsSync(filePath)) {
+  const sampleDir = path.join(__dirname, 'public', 'sample-docs');
+  const resolved = resolveSampleDoc(req.params.filename, sampleDir);
+  if (!resolved) {
     return res.status(404).json({ error: 'Sample document not found' });
   }
+  const contentType = getSampleMimeType(resolved.clientFilename);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  return res.download(filePath, safeFilename);
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${resolved.clientFilename}"`);
+  return fs.createReadStream(resolved.filePath).pipe(res);
 });
 
 // Dedicated sample document preview endpoint: sets Content-Disposition: inline to open in a new tab
 app.get('/sample-docs/preview/:filename', (req, res) => {
-  const { filename } = req.params;
-  const safeFilename = path.basename(filename);
-  const filePath = path.join(__dirname, 'public', 'sample-docs', safeFilename);
-  if (!fs.existsSync(filePath)) {
+  const sampleDir = path.join(__dirname, 'public', 'sample-docs');
+  const resolved = resolveSampleDoc(req.params.filename, sampleDir);
+  if (!resolved) {
     return res.status(404).json({ error: 'Sample document not found' });
   }
-  const ext = path.extname(safeFilename).toLowerCase();
-  let contentType = 'application/octet-stream';
-  if (ext === '.pdf') contentType = 'application/pdf';
-  else if (ext === '.png') contentType = 'image/png';
-  else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-
+  const contentType = getSampleMimeType(resolved.clientFilename);
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
-  return fs.createReadStream(filePath).pipe(res);
+  res.setHeader('Content-Disposition', `inline; filename="${resolved.clientFilename}"`);
+  return fs.createReadStream(resolved.filePath).pipe(res);
 });
 
 // Serve static demo sample files

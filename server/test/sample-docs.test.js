@@ -37,6 +37,16 @@ async function runSampleDocsTests() {
     { name: 'Synthetic_Income_Certificate_Rahul.pdf', mime: 'application/pdf', magic: '%PDF-' },
     { name: 'Synthetic_Income_Certificate_Rahul.jpg', mime: 'image/jpeg', magicBytes: [0xFF, 0xD8, 0xFF] },
     { name: 'Synthetic_Income_Certificate_Rahul.png', mime: 'image/png', magic: '\x89PNG' },
+    // Canonical sample names requested by UI
+    { name: 'sample-aadhaar.pdf', mime: 'application/pdf', magic: '%PDF-' },
+    { name: 'sample-aadhaar.png', mime: 'image/png', magic: '\x89PNG' },
+    { name: 'sample-aadhaar.jpg', mime: 'image/jpeg', magicBytes: [0xFF, 0xD8, 0xFF] },
+    { name: 'sample-marksheet.pdf', mime: 'application/pdf', magic: '%PDF-' },
+    { name: 'sample-marksheet.png', mime: 'image/png', magic: '\x89PNG' },
+    { name: 'sample-marksheet.jpg', mime: 'image/jpeg', magicBytes: [0xFF, 0xD8, 0xFF] },
+    { name: 'sample-income-certificate.pdf', mime: 'application/pdf', magic: '%PDF-' },
+    { name: 'sample-income-certificate.png', mime: 'image/png', magic: '\x89PNG' },
+    { name: 'sample-income-certificate.jpg', mime: 'image/jpeg', magicBytes: [0xFF, 0xD8, 0xFF] },
   ];
 
   for (const exp of expectedFiles) {
@@ -64,29 +74,60 @@ async function runSampleDocsTests() {
   const app = express();
   app.use(express.json());
 
+  const SAMPLE_ALIASES = {
+    'sample-aadhaar.pdf': 'Synthetic_Aadhaar_Rahul_Sharma.pdf',
+    'sample-aadhaar.png': 'Synthetic_Aadhaar_Rahul_Sharma.png',
+    'sample-aadhaar.jpg': 'Synthetic_Aadhaar_Rahul_Sharma.jpg',
+    'sample-marksheet.pdf': 'Synthetic_Class_XII_Marksheet_Rahul.pdf',
+    'sample-marksheet.png': 'Synthetic_Class_XII_Marksheet_Rahul.png',
+    'sample-marksheet.jpg': 'Synthetic_Class_XII_Marksheet_Rahul.jpg',
+    'sample-income-certificate.pdf': 'Synthetic_Income_Certificate_Rahul.pdf',
+    'sample-income-certificate.png': 'Synthetic_Income_Certificate_Rahul.png',
+    'sample-income-certificate.jpg': 'Synthetic_Income_Certificate_Rahul.jpg',
+  };
+
+  function resolveTestDoc(filename) {
+    const safeFilename = path.basename(filename);
+    const directPath = path.join(SAMPLE_DIR, safeFilename);
+    if (fs.existsSync(directPath)) return { filePath: directPath, clientFilename: safeFilename };
+    const aliasName = SAMPLE_ALIASES[safeFilename];
+    if (aliasName) {
+      const aliasPath = path.join(SAMPLE_DIR, aliasName);
+      if (fs.existsSync(aliasPath)) return { filePath: aliasPath, clientFilename: safeFilename };
+    }
+    return null;
+  }
+
+  function getTestMime(filename) {
+    const ext = path.extname(filename).toLowerCase();
+    if (ext === '.pdf') return 'application/pdf';
+    if (ext === '.png') return 'image/png';
+    if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+    return 'application/octet-stream';
+  }
+
   // Download endpoint with attachment header
   app.get('/sample-docs/download/:filename', (req, res) => {
-    const safeFilename = path.basename(req.params.filename);
-    const filePath = path.join(SAMPLE_DIR, safeFilename);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+    const resolved = resolveTestDoc(req.params.filename);
+    if (!resolved) return res.status(404).json({ error: 'Not found' });
+    const contentType = getTestMime(resolved.clientFilename);
     res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.download(filePath, safeFilename);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${resolved.clientFilename}"`);
+    return fs.createReadStream(resolved.filePath).pipe(res);
   });
 
   // Preview endpoint with inline header
   app.get('/sample-docs/preview/:filename', (req, res) => {
-    const safeFilename = path.basename(req.params.filename);
-    const filePath = path.join(SAMPLE_DIR, safeFilename);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
-    const ext = path.extname(safeFilename).toLowerCase();
-    let contentType = 'application/octet-stream';
-    if (ext === '.pdf') contentType = 'application/pdf';
-    else if (ext === '.png') contentType = 'image/png';
-    else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+    const resolved = resolveTestDoc(req.params.filename);
+    if (!resolved) return res.status(404).json({ error: 'Not found' });
+    const contentType = getTestMime(resolved.clientFilename);
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
-    return fs.createReadStream(filePath).pipe(res);
+    res.setHeader('Content-Disposition', `inline; filename="${resolved.clientFilename}"`);
+    return fs.createReadStream(resolved.filePath).pipe(res);
   });
 
   app.use('/sample-docs', express.static(SAMPLE_DIR));
@@ -178,6 +219,17 @@ async function runSampleDocsTests() {
   console.assert(iRes.extractedData.documentNumber === 'REV/INC/2023/4491', `Income cert no expected 'REV/INC/2023/4491', got '${iRes.extractedData.documentNumber}'`);
   console.assert(iRes.extractedData.expiryDate === '13/08/2024', `Income expiry expected '13/08/2024', got '${iRes.extractedData.expiryDate}'`);
   console.log(` ✓ Income JPG: Name="${iRes.extractedData.candidateName}", DOB="${iRes.extractedData.dateOfBirth}", Cert="${iRes.extractedData.documentNumber}", ValidTill="${iRes.extractedData.expiryDate}", Conf=${iRes.extractedData.confidence}%`);
+  // 4d. Verify canonical alias files OCR extraction
+  const canonAadhaarPng = path.join(SAMPLE_DIR, 'sample-aadhaar.png');
+  const caRes = await processDocumentFile({
+    path: canonAadhaarPng,
+    originalname: 'sample-aadhaar.png',
+    mimetype: 'image/png',
+    size: fs.statSync(canonAadhaarPng).size,
+  }, 'IDENTITY_PROOF');
+  console.assert(caRes.extractedData.isReadable === true && caRes.extractedData.candidateName === 'Rahul Sharma', 'sample-aadhaar.png must extract Rahul Sharma');
+  console.log(` ✓ sample-aadhaar.png: Name="${caRes.extractedData.candidateName}", DOB="${caRes.extractedData.dateOfBirth}"`);
+
   console.log('✓ TEST 4 PASSED: OCR extraction accurately parsed all fields with high confidence.\n');
 
   // --- TEST 5: Verification Engine Evaluation on Real Extracted Documents ---

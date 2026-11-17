@@ -37,7 +37,45 @@ export default function StepUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [downloadingFile, setDownloadingFile] = useState(null);
   const fileInputRef = useRef(null);
+
+  const handleDownload = async (e, filename) => {
+    // Strictly prevent navigating the current DocuReady wizard tab
+    e.preventDefault();
+    e.stopPropagation();
+
+    const downloadUrl = getSampleDocDownloadUrl(filename);
+    try {
+      setDownloadingFile(filename);
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.warn(`Direct blob download failed for ${filename}, using safe new-tab fallback:`, err);
+      // Safe fallback that opens in a background/new tab and NEVER navigates the current tab
+      const fallbackLink = document.createElement('a');
+      fallbackLink.href = downloadUrl;
+      fallbackLink.download = filename;
+      fallbackLink.target = '_blank';
+      fallbackLink.rel = 'noopener noreferrer';
+      document.body.appendChild(fallbackLink);
+      fallbackLink.click();
+      document.body.removeChild(fallbackLink);
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
 
   const handleFiles = async (files) => {
     if (!files || files.length === 0) return;
@@ -202,40 +240,48 @@ export default function StepUpload({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-4">
-          {/* Aadhaar Card */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mt-4">
+          {/* Identity Proof (Aadhaar) */}
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
             <div>
-              <span className="text-xs font-bold text-slate-800 block">Identity Proof (Aadhaar)</span>
+              <span className="text-xs font-bold text-slate-800 block">Identity Proof</span>
               <span className="text-[11px] text-slate-500 block">Rahul Sharma (DOB: 12/05/2005)</span>
             </div>
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
               {[
-                { fmt: 'PDF', file: 'Synthetic_Aadhaar_Rahul_Sharma.pdf' },
-                { fmt: 'PNG', file: 'Synthetic_Aadhaar_Rahul_Sharma.png' },
-                { fmt: 'JPG', file: 'Synthetic_Aadhaar_Rahul_Sharma.jpg' },
+                { fmt: 'PDF', file: 'sample-aadhaar.pdf' },
+                { fmt: 'PNG', file: 'sample-aadhaar.png' },
+                { fmt: 'JPG', file: 'sample-aadhaar.jpg' },
               ].map(({ fmt, file }) => (
-                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-150 text-[11px]">
-                  <span className="font-bold text-slate-700">{fmt}</span>
-                  <div className="flex items-center gap-1.5">
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px]">
+                  <div className="flex items-center justify-between w-full gap-1.5">
                     <a
                       href={getSampleDocPreviewUrl(file)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
-                      title={`Preview ${fmt} in new tab`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 border border-slate-200 bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      title={`Preview ${fmt} in a new tab`}
                     >
-                      <span>Preview</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                      <span>Preview {fmt}</span>
                     </a>
+                    <span className="text-slate-300 font-medium select-none">|</span>
                     <a
                       href={getSampleDocDownloadUrl(file)}
-                      download
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1"
-                      title={`Download ${fmt}`}
+                      download={file}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => handleDownload(e, file)}
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      title={`Download ${file}`}
                     >
-                      <span>Download</span>
-                      <DownloadCloud className="w-2.5 h-2.5" />
+                      {downloadingFile === file ? (
+                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin" />
+                      ) : (
+                        <DownloadCloud className="w-2.5 h-2.5 shrink-0" />
+                      )}
+                      <span>Download {fmt}</span>
                     </a>
                   </div>
                 </div>
@@ -243,39 +289,47 @@ export default function StepUpload({
             </div>
           </div>
 
-          {/* Marksheet */}
+          {/* Class XII Marksheet */}
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
             <div>
-              <span className="text-xs font-bold text-slate-800 block">Marksheet (Class XII)</span>
+              <span className="text-xs font-bold text-slate-800 block">Class XII Marksheet</span>
               <span className="text-[11px] text-slate-500 block">Rahul S. Sharma (Initial variation)</span>
             </div>
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
               {[
-                { fmt: 'PDF', file: 'Synthetic_Class_XII_Marksheet_Rahul.pdf' },
-                { fmt: 'PNG', file: 'Synthetic_Class_XII_Marksheet_Rahul.png' },
-                { fmt: 'JPG', file: 'Synthetic_Class_XII_Marksheet_Rahul.jpg' },
+                { fmt: 'PDF', file: 'sample-marksheet.pdf' },
+                { fmt: 'PNG', file: 'sample-marksheet.png' },
+                { fmt: 'JPG', file: 'sample-marksheet.jpg' },
               ].map(({ fmt, file }) => (
-                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-150 text-[11px]">
-                  <span className="font-bold text-slate-700">{fmt}</span>
-                  <div className="flex items-center gap-1.5">
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px]">
+                  <div className="flex items-center justify-between w-full gap-1.5">
                     <a
                       href={getSampleDocPreviewUrl(file)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
-                      title={`Preview ${fmt} in new tab`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 border border-slate-200 bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      title={`Preview ${fmt} in a new tab`}
                     >
-                      <span>Preview</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                      <span>Preview {fmt}</span>
                     </a>
+                    <span className="text-slate-300 font-medium select-none">|</span>
                     <a
                       href={getSampleDocDownloadUrl(file)}
-                      download
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1"
-                      title={`Download ${fmt}`}
+                      download={file}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => handleDownload(e, file)}
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      title={`Download ${file}`}
                     >
-                      <span>Download</span>
-                      <DownloadCloud className="w-2.5 h-2.5" />
+                      {downloadingFile === file ? (
+                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin" />
+                      ) : (
+                        <DownloadCloud className="w-2.5 h-2.5 shrink-0" />
+                      )}
+                      <span>Download {fmt}</span>
                     </a>
                   </div>
                 </div>
@@ -291,31 +345,39 @@ export default function StepUpload({
             </div>
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
               {[
-                { fmt: 'PDF', file: 'Synthetic_Income_Certificate_Rahul.pdf' },
-                { fmt: 'JPG', file: 'Synthetic_Income_Certificate_Rahul.jpg' },
-                { fmt: 'PNG', file: 'Synthetic_Income_Certificate_Rahul.png' },
+                { fmt: 'PDF', file: 'sample-income-certificate.pdf' },
+                { fmt: 'PNG', file: 'sample-income-certificate.png' },
+                { fmt: 'JPG', file: 'sample-income-certificate.jpg' },
               ].map(({ fmt, file }) => (
-                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-150 text-[11px]">
-                  <span className="font-bold text-slate-700">{fmt}</span>
-                  <div className="flex items-center gap-1.5">
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px]">
+                  <div className="flex items-center justify-between w-full gap-1.5">
                     <a
                       href={getSampleDocPreviewUrl(file)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
-                      title={`Preview ${fmt} in new tab`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 border border-slate-200 bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      title={`Preview ${fmt} in a new tab`}
                     >
-                      <span>Preview</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                      <span>Preview {fmt}</span>
                     </a>
+                    <span className="text-slate-300 font-medium select-none">|</span>
                     <a
                       href={getSampleDocDownloadUrl(file)}
-                      download
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1"
-                      title={`Download ${fmt}`}
+                      download={file}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => handleDownload(e, file)}
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      title={`Download ${file}`}
                     >
-                      <span>Download</span>
-                      <DownloadCloud className="w-2.5 h-2.5" />
+                      {downloadingFile === file ? (
+                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin" />
+                      ) : (
+                        <DownloadCloud className="w-2.5 h-2.5 shrink-0" />
+                      )}
+                      <span>Download {fmt}</span>
                     </a>
                   </div>
                 </div>

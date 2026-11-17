@@ -760,6 +760,31 @@ function ensureSampleFiles() {
     fs.writeFileSync(path.join(sampleDir, 'Synthetic_Income_Certificate_Rahul.png'), incomePng);
   }
 
+  // Canonical sample copies for standard download filenames requested by UI
+  const canonicalCopies = [
+    { src: 'Synthetic_Aadhaar_Rahul_Sharma.pdf', dest: 'sample-aadhaar.pdf' },
+    { src: 'Synthetic_Aadhaar_Rahul_Sharma.png', dest: 'sample-aadhaar.png' },
+    { src: 'Synthetic_Aadhaar_Rahul_Sharma.jpg', dest: 'sample-aadhaar.jpg' },
+    { src: 'Synthetic_Class_XII_Marksheet_Rahul.pdf', dest: 'sample-marksheet.pdf' },
+    { src: 'Synthetic_Class_XII_Marksheet_Rahul.png', dest: 'sample-marksheet.png' },
+    { src: 'Synthetic_Class_XII_Marksheet_Rahul.jpg', dest: 'sample-marksheet.jpg' },
+    { src: 'Synthetic_Income_Certificate_Rahul.pdf', dest: 'sample-income-certificate.pdf' },
+    { src: 'Synthetic_Income_Certificate_Rahul.png', dest: 'sample-income-certificate.png' },
+    { src: 'Synthetic_Income_Certificate_Rahul.jpg', dest: 'sample-income-certificate.jpg' },
+  ];
+
+  for (const pair of canonicalCopies) {
+    const srcPath = path.join(sampleDir, pair.src);
+    const destPath = path.join(sampleDir, pair.dest);
+    if (fs.existsSync(srcPath)) {
+      try {
+        fs.copyFileSync(srcPath, destPath);
+      } catch (copyErr) {
+        console.warn(`[DocuReady Warning] Could not mirror ${pair.src} to ${pair.dest}:`, copyErr.message);
+      }
+    }
+  }
+
   console.log('Sample synthetic documents generated successfully at:', sampleDir);
 }
 
