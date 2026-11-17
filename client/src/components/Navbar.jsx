@@ -1,53 +1,77 @@
 // client/src/components/Navbar.jsx
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ShieldCheck, FileCheck2, Sparkles, LayoutDashboard } from 'lucide-react';
 
 export default function Navbar({ currentView, setView, onQuickDemo, activeAuditId, onResumeAudit }) {
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  useEffect(() => {
+    if (currentView !== 'landing') {
+      setScrollProgress(0);
+      return;
+    }
+    const handleScroll = () => {
+      const totalScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (totalScroll > 0) {
+        setScrollProgress((window.scrollY / totalScroll) * 100);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [currentView]);
+
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-border-subtle transition-colors relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-18">
           {/* Logo & Brand */}
           <div 
             onClick={() => setView('landing')}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-3.5 cursor-pointer group select-none"
+            title="DocuReady Home"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:bg-blue-700 transition">
-              <FileCheck2 className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-navy flex items-center justify-center text-white shadow-md shadow-navy/20 group-hover:bg-navy-dark transition-all duration-200">
+              <FileCheck2 className="w-5 h-5 text-teal-accent" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xl font-bold tracking-tight text-slate-900">DocuReady</span>
-                <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-700 rounded-full border border-blue-200">
-                  MVP
+              <div className="flex items-center gap-2">
+                <span className="font-heading text-xl font-extrabold tracking-tight text-navy">
+                  DocuReady
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-teal-light text-teal-dark rounded-full border border-teal-accent/30">
+                  Audit MVP
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">Pre-Submission Application Audit</p>
+              <p className="text-xs text-muted-text font-medium hidden sm:block">
+                Pre-Submission Application Audit
+              </p>
             </div>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="flex items-center gap-1 sm:gap-3">
+          {/* Navigation Actions */}
+          <nav className="flex items-center gap-1.5 sm:gap-2.5">
             <button
               onClick={() => setView('landing')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+              className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 cursor-pointer ${
                 currentView === 'landing'
-                  ? 'text-blue-600 bg-blue-50'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'text-navy bg-secondary-light font-bold shadow-2xs'
+                  : 'text-muted-text hover:text-navy hover:bg-canvas'
               }`}
             >
               Overview
             </button>
+
             <button
               onClick={() => setView('dashboard')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
                 currentView === 'dashboard'
-                  ? 'text-blue-600 bg-blue-50'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'text-navy bg-secondary-light font-bold shadow-2xs'
+                  : 'text-muted-text hover:text-navy hover:bg-canvas'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4" />
+              <LayoutDashboard className="w-4 h-4 text-secondary-blue" />
               <span>Dashboard</span>
             </button>
 
@@ -55,10 +79,10 @@ export default function Navbar({ currentView, setView, onQuickDemo, activeAuditI
             {activeAuditId && currentView !== 'new-audit' && (
               <button
                 onClick={onResumeAudit}
-                className="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition flex items-center gap-1.5 shadow-2xs"
+                className="px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-bold rounded-xl bg-teal-light text-teal-dark border border-teal-accent/30 hover:bg-teal-100 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Resume active in-progress audit"
               >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-teal-accent animate-pulse" />
                 <span className="hidden md:inline">Resume Active Audit</span>
                 <span className="md:hidden">Resume</span>
               </button>
@@ -67,10 +91,10 @@ export default function Navbar({ currentView, setView, onQuickDemo, activeAuditI
             {/* Quick Synthetic Demo trigger */}
             <button
               onClick={onQuickDemo}
-              className="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 transition flex items-center gap-1.5 shadow-xs"
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-xl border border-amber-200 bg-amber-50/90 text-amber-900 hover:bg-amber-100/90 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
               title="Test the synthetic benchmark scenario (Rahul Sharma)"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span className="hidden md:inline">Run Demo Case</span>
               <span className="md:hidden">Demo</span>
             </button>
@@ -78,14 +102,24 @@ export default function Navbar({ currentView, setView, onQuickDemo, activeAuditI
             {/* New Audit CTA */}
             <button
               onClick={() => setView('new-audit')}
-              className="ml-2 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition shadow-sm shadow-blue-600/20 flex items-center gap-1.5"
+              className="ml-1 sm:ml-2 px-4 py-2 sm:px-4.5 sm:py-2.2 text-xs sm:text-sm font-bold rounded-xl bg-navy text-white hover:bg-navy-dark active:scale-[0.98] transition-all duration-200 shadow-sm shadow-navy/20 flex items-center gap-1.5 cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4 text-teal-accent" />
               <span>New Audit</span>
             </button>
           </nav>
         </div>
       </div>
+
+      {/* Subtle Scroll Progress Accent Line */}
+      {currentView === 'landing' && (
+        <div className="absolute bottom-0 left-0 h-[2px] w-full bg-transparent overflow-hidden pointer-events-none">
+          <div 
+            className="h-full bg-linear-to-r from-navy via-secondary-blue to-teal-accent transition-all duration-150 ease-out"
+            style={{ width: `${Math.min(100, Math.max(0, scrollProgress))}%` }}
+          />
+        </div>
+      )}
     </header>
   );
 }

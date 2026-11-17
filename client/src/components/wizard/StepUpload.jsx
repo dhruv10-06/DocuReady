@@ -129,27 +129,31 @@ export default function StepUpload({
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+        <h2 className="text-xl sm:text-2xl font-extrabold text-navy tracking-tight">
           Step 2: Upload Supporting Documents
         </h2>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-muted-text mt-1">
           Upload PDF documents or scanned images (JPG/PNG). DocuReady will execute automated OCR and text parsing.
         </p>
       </div>
 
       {/* Synthetic Demo Case Shortcut */}
-      <div className="bg-amber-50/70 border border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
+      <div className="bg-white border border-border-subtle rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:border-border-card transition">
+        <div className="flex items-start gap-3.5">
+          <div className="p-2.5 bg-amber-50 text-amber-700 rounded-xl shrink-0 mt-0.5 border border-amber-200">
+            <Sparkles className="w-5 h-5" />
+          </div>
           <div>
-            <p className="text-xs font-bold text-amber-900">Evaluating without personal files?</p>
-            <p className="text-xs text-amber-700">Pre-load the 3 synthetic demonstration documents (Aadhaar, Marksheet, Income Certificate) with 1 click.</p>
+            <p className="text-xs font-bold text-navy">Evaluating without personal files?</p>
+            <p className="text-xs text-muted-text mt-0.5">
+              Pre-load the 3 synthetic demonstration documents (Aadhaar, Marksheet, Income Certificate) with 1 click.
+            </p>
           </div>
         </div>
         <button
           type="button"
           onClick={onLoadDemo}
-          className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition shrink-0 shadow-xs flex items-center gap-1.5 justify-center"
+          className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition shrink-0 shadow-xs flex items-center gap-1.5 justify-center cursor-pointer"
         >
           <Sparkles className="w-3.5 h-3.5" />
           <span>Load Synthetic Demo</span>
@@ -157,15 +161,15 @@ export default function StepUpload({
       </div>
 
       {/* Category selector & Upload Box */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
+      <div className="bg-white border border-border-subtle rounded-2xl p-6 shadow-xs space-y-5">
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-navy mb-2">
             Target Document Category for Upload
           </label>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full sm:w-80 px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition"
+            className="w-full sm:w-80 px-4 py-2.5 text-sm rounded-xl border border-border-subtle bg-white font-medium text-navy focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy transition"
           >
             {documentTypes.map((dt) => (
               <option key={dt.type} value={dt.type}>
@@ -183,8 +187,8 @@ export default function StepUpload({
           onClick={() => fileInputRef.current?.click()}
           className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
             isDragging
-              ? 'border-blue-600 bg-blue-50/50'
-              : 'border-slate-200 hover:border-blue-400 hover:bg-slate-50/50'
+              ? 'border-navy bg-navy-50/50'
+              : 'border-border-subtle hover:border-secondary-blue hover:bg-canvas'
           }`}
         >
           <input
@@ -197,19 +201,19 @@ export default function StepUpload({
           />
 
           <div className="flex flex-col items-center justify-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-navy-50 text-navy flex items-center justify-center shadow-2xs">
               {uploading ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin text-teal-accent" />
               ) : (
-                <UploadCloud className="w-6 h-6" />
+                <UploadCloud className="w-6 h-6 text-navy" />
               )}
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-slate-800">
+              <p className="text-sm font-bold text-navy">
                 {uploading ? 'Processing OCR & Text Extraction...' : 'Click to select or drag and drop files here'}
               </p>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-muted-text mt-1">
                 Supported formats: PDF, JPG, PNG (Max 10MB per file)
               </p>
             </div>
@@ -225,16 +229,16 @@ export default function StepUpload({
       </div>
 
       {/* Download & Preview Synthetic Files for Manual Testing */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs">
+      <div className="bg-canvas border border-border-subtle rounded-2xl p-5 sm:p-6 shadow-xs">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <DownloadCloud className="w-4 h-4 text-blue-600" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+              <DownloadCloud className="w-4 h-4 text-teal-accent" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-navy">
                 Want to test manual file upload? Preview or Download Synthetic Test Documents
               </h4>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-text">
               Preview documents in a new tab or download realistic benchmark files (PDF, PNG, JPG) to test manual drag-and-drop and OCR verification:
             </p>
           </div>
@@ -242,25 +246,25 @@ export default function StepUpload({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mt-4">
           {/* Identity Proof (Aadhaar) */}
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
+          <div className="bg-white p-4 rounded-xl border border-border-subtle shadow-2xs flex flex-col justify-between space-y-3">
             <div>
-              <span className="text-xs font-bold text-slate-800 block">Identity Proof</span>
-              <span className="text-[11px] text-slate-500 block">Rahul Sharma (DOB: 12/05/2005)</span>
+              <span className="text-xs font-bold text-navy block">Identity Proof</span>
+              <span className="text-[11px] text-muted-text block">Rahul Sharma (DOB: 12/05/2005)</span>
             </div>
-            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+            <div className="space-y-1.5 pt-2 border-t border-border-subtle">
               {[
                 { fmt: 'PDF', file: 'sample-aadhaar.pdf' },
                 { fmt: 'PNG', file: 'sample-aadhaar.png' },
                 { fmt: 'JPG', file: 'sample-aadhaar.jpg' },
               ].map(({ fmt, file }) => (
-                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px]">
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-canvas border border-border-subtle text-[11px]">
                   <div className="flex items-center justify-between w-full gap-1.5">
                     <a
                       href={getSampleDocPreviewUrl(file)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 border border-slate-200 bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-secondary-blue hover:text-navy hover:bg-navy-50 border border-border-subtle bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center cursor-pointer"
                       title={`Preview ${fmt} in a new tab`}
                     >
                       <ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -273,11 +277,11 @@ export default function StepUpload({
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => handleDownload(e, file)}
-                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-navy hover:bg-navy-dark transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center cursor-pointer"
                       title={`Download ${file}`}
                     >
                       {downloadingFile === file ? (
-                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin" />
+                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin text-teal-accent" />
                       ) : (
                         <DownloadCloud className="w-2.5 h-2.5 shrink-0" />
                       )}
@@ -290,25 +294,25 @@ export default function StepUpload({
           </div>
 
           {/* Class XII Marksheet */}
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
+          <div className="bg-white p-4 rounded-xl border border-border-subtle shadow-2xs flex flex-col justify-between space-y-3">
             <div>
-              <span className="text-xs font-bold text-slate-800 block">Class XII Marksheet</span>
-              <span className="text-[11px] text-slate-500 block">Rahul S. Sharma (Initial variation)</span>
+              <span className="text-xs font-bold text-navy block">Class XII Marksheet</span>
+              <span className="text-[11px] text-muted-text block">Rahul S. Sharma (Initial variation)</span>
             </div>
-            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+            <div className="space-y-1.5 pt-2 border-t border-border-subtle">
               {[
                 { fmt: 'PDF', file: 'sample-marksheet.pdf' },
                 { fmt: 'PNG', file: 'sample-marksheet.png' },
                 { fmt: 'JPG', file: 'sample-marksheet.jpg' },
               ].map(({ fmt, file }) => (
-                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px]">
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-canvas border border-border-subtle text-[11px]">
                   <div className="flex items-center justify-between w-full gap-1.5">
                     <a
                       href={getSampleDocPreviewUrl(file)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 border border-slate-200 bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-secondary-blue hover:text-navy hover:bg-navy-50 border border-border-subtle bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center cursor-pointer"
                       title={`Preview ${fmt} in a new tab`}
                     >
                       <ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -321,11 +325,11 @@ export default function StepUpload({
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => handleDownload(e, file)}
-                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-navy hover:bg-navy-dark transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center cursor-pointer"
                       title={`Download ${file}`}
                     >
                       {downloadingFile === file ? (
-                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin" />
+                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin text-teal-accent" />
                       ) : (
                         <DownloadCloud className="w-2.5 h-2.5 shrink-0" />
                       )}
@@ -338,25 +342,25 @@ export default function StepUpload({
           </div>
 
           {/* Income Certificate */}
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
+          <div className="bg-white p-4 rounded-xl border border-border-subtle shadow-2xs flex flex-col justify-between space-y-3">
             <div>
-              <span className="text-xs font-bold text-slate-800 block">Income Certificate</span>
-              <span className="text-[11px] text-slate-500 block">Rahul Sharma (DOB 2004, Expired)</span>
+              <span className="text-xs font-bold text-navy block">Income Certificate</span>
+              <span className="text-[11px] text-muted-text block">Rahul Sharma (DOB 2004, Expired)</span>
             </div>
-            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+            <div className="space-y-1.5 pt-2 border-t border-border-subtle">
               {[
                 { fmt: 'PDF', file: 'sample-income-certificate.pdf' },
                 { fmt: 'PNG', file: 'sample-income-certificate.png' },
                 { fmt: 'JPG', file: 'sample-income-certificate.jpg' },
               ].map(({ fmt, file }) => (
-                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px]">
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-canvas border border-border-subtle text-[11px]">
                   <div className="flex items-center justify-between w-full gap-1.5">
                     <a
                       href={getSampleDocPreviewUrl(file)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 border border-slate-200 bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-secondary-blue hover:text-navy hover:bg-navy-50 border border-border-subtle bg-white transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center cursor-pointer"
                       title={`Preview ${fmt} in a new tab`}
                     >
                       <ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -369,11 +373,11 @@ export default function StepUpload({
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => handleDownload(e, file)}
-                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center"
+                      className="flex-1 py-1 px-1.5 rounded-md font-semibold text-white bg-navy hover:bg-navy-dark transition flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap text-center cursor-pointer"
                       title={`Download ${file}`}
                     >
                       {downloadingFile === file ? (
-                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin" />
+                        <Loader2 className="w-2.5 h-2.5 shrink-0 animate-spin text-teal-accent" />
                       ) : (
                         <DownloadCloud className="w-2.5 h-2.5 shrink-0" />
                       )}
@@ -388,18 +392,18 @@ export default function StepUpload({
       </div>
 
       {/* Uploaded Documents List */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
+      <div className="bg-white border border-border-subtle rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-navy">
             Uploaded Documents ({documents.length})
           </h4>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-muted-text">
             {documents.length >= 1 ? 'Ready for Information Extraction Review' : 'No documents uploaded yet'}
           </span>
         </div>
 
         {documents.length === 0 ? (
-          <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
+          <div className="p-8 text-center border border-dashed border-border-subtle rounded-xl text-xs text-muted-text bg-canvas">
             Upload at least one document to proceed to information review.
           </div>
         ) : (
@@ -407,23 +411,23 @@ export default function StepUpload({
             {documents.map((doc) => (
               <div
                 key={doc.id}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs hover:border-slate-200 transition"
+                className="flex items-center justify-between p-3.5 rounded-xl bg-canvas border border-border-subtle text-xs hover:border-border-card transition"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-xl bg-navy-50 text-navy flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-secondary-blue" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 truncate">{doc.filename}</p>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-                      <span className="px-2 py-0.5 rounded bg-slate-200/80 font-medium text-slate-700">
+                    <p className="font-bold text-navy truncate">{doc.filename}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-text mt-0.5">
+                      <span className="px-2 py-0.5 rounded bg-white border border-border-subtle font-medium text-navy">
                         {doc.docCategory.replace(/_/g, ' ')}
                       </span>
                       <span>{(doc.size / 1024).toFixed(0)} KB</span>
                       {doc.extractedData?.isReadable === false ? (
                         <span className="text-rose-600 font-semibold">• Unreadable</span>
                       ) : (
-                        <span className="text-emerald-600 font-semibold">
+                        <span className="text-teal-dark font-semibold">
                           • OCR Confidence: {doc.extractedData?.confidence || 90}%
                         </span>
                       )}
@@ -434,7 +438,7 @@ export default function StepUpload({
                 <button
                   type="button"
                   onClick={() => handleDelete(doc.id)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition shrink-0"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition shrink-0 cursor-pointer"
                   title="Remove document"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -450,7 +454,7 @@ export default function StepUpload({
         <button
           type="button"
           onClick={onBack}
-          className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition text-sm flex items-center gap-2"
+          className="px-5 py-2.5 rounded-xl border border-border-subtle text-navy font-semibold hover:bg-navy-50 transition text-sm flex items-center gap-2 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Category</span>
@@ -460,17 +464,16 @@ export default function StepUpload({
           type="button"
           onClick={onNext}
           disabled={documents.length === 0}
-          className={`px-6 py-3 rounded-xl font-semibold transition text-sm flex items-center gap-2 ${
+          className={`px-6 py-3 rounded-xl font-semibold transition text-sm flex items-center gap-2 cursor-pointer ${
             documents.length === 0
               ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-600/20'
+              : 'bg-navy text-white hover:bg-navy-dark shadow-sm shadow-navy/20'
           }`}
         >
           <span>Review Extracted Information</span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4 text-teal-accent" />
         </button>
       </div>
     </div>
   );
 }
-

@@ -262,21 +262,21 @@ export default function NewAuditPage({
   if (loading) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        <p className="text-xs font-semibold text-slate-500">Initializing DocuReady Audit Environment...</p>
+        <Loader2 className="w-8 h-8 text-teal-accent animate-spin" />
+        <p className="text-xs font-semibold text-navy">Initializing DocuReady Audit Environment...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-xl mx-auto my-12 p-8 bg-white border border-rose-200 rounded-2xl shadow-sm text-center space-y-4">
-        <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
+      <div className="max-w-xl mx-auto my-12 p-8 bg-white border border-rose-200 rounded-3xl shadow-sm text-center space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
           <AlertTriangle className="w-6 h-6" />
         </div>
-        <h3 className="text-lg font-bold text-slate-900">Audit Session Unavailable</h3>
-        <p className="text-sm text-slate-600">{error}</p>
-        <p className="text-xs text-slate-500">
+        <h3 className="text-lg font-bold text-navy">Audit Session Unavailable</h3>
+        <p className="text-sm text-muted-text">{error}</p>
+        <p className="text-xs text-muted-text/80">
           Audit sessions expire after 2 hours of inactivity or when the server restarts for applicant privacy.
         </p>
         <div className="pt-2 flex justify-center gap-3">
@@ -287,13 +287,13 @@ export default function NewAuditPage({
               if (onStartNew) onStartNew();
               else setView('new-audit');
             }}
-            className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+            className="px-5 py-2.5 text-xs font-bold rounded-xl bg-navy text-white hover:bg-navy-dark transition cursor-pointer"
           >
             Start Fresh Audit
           </button>
           <button
             onClick={() => setView('dashboard')}
-            className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition"
+            className="px-5 py-2.5 text-xs font-semibold rounded-xl border border-border-subtle text-navy hover:bg-navy-50 transition cursor-pointer"
           >
             Go to Dashboard
           </button>
@@ -307,7 +307,7 @@ export default function NewAuditPage({
       {/* Wizard Progress Bar */}
       <div className="no-print max-w-3xl mx-auto">
         <div className="flex items-center justify-between relative">
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-200 z-0" />
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-border-subtle z-0" />
           {steps.map((s) => {
             const isCompleted = currentStep > s.num;
             const isCurrent = currentStep === s.num;
@@ -324,15 +324,15 @@ export default function NewAuditPage({
               >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition shadow-xs ${
                   isCompleted
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-teal-accent text-white'
                     : isCurrent
-                      ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                      : 'bg-white border border-slate-300 text-slate-400'
+                      ? 'bg-navy text-white ring-4 ring-navy-100'
+                      : 'bg-white border border-border-subtle text-muted-text'
                 }`}>
                   {isCompleted ? '✓' : s.num}
                 </div>
                 <span className={`text-[11px] font-semibold mt-1.5 transition ${
-                  isCurrent ? 'text-blue-600' : isCompleted ? 'text-slate-800' : 'text-slate-400'
+                  isCurrent ? 'text-navy font-bold' : isCompleted ? 'text-teal-dark font-medium' : 'text-muted-text'
                 }`}>
                   {s.label}
                 </span>
@@ -345,11 +345,11 @@ export default function NewAuditPage({
       {/* Wizard Step Container */}
       <div className="pt-2">
         {isProcessing && (
-          <div className="fixed inset-0 z-50 bg-slate-900/20 backdrop-blur-xs flex items-center justify-center">
-            <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center space-y-3 max-w-sm mx-4">
-              <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
-              <p className="text-sm font-bold text-slate-800">Processing Audit Execution...</p>
-              <p className="text-xs text-slate-500">Cross-checking document details, running OCR normalization, and compiling compliance results.</p>
+          <div className="fixed inset-0 z-50 bg-navy/30 backdrop-blur-xs flex items-center justify-center">
+            <div className="bg-white p-6 rounded-2xl shadow-xl border border-border-subtle text-center space-y-3 max-w-sm mx-4">
+              <Loader2 className="w-8 h-8 text-teal-accent animate-spin mx-auto" />
+              <p className="text-sm font-bold text-navy">Processing Audit Execution...</p>
+              <p className="text-xs text-muted-text">Cross-checking document details, running OCR normalization, and compiling compliance results.</p>
             </div>
           </div>
         )}

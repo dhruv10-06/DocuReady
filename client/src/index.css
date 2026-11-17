@@ -1,38 +1,208 @@
 @import "tailwindcss";
 
+@theme {
+  --color-navy: #142B4A;
+  --color-navy-dark: #0D1C30;
+  --color-navy-light: #1E3E6B;
+  --color-navy-50: #F0F4F9;
+  --color-navy-100: #DEE7F2;
+
+  --color-secondary-blue: #3567A8;
+  --color-secondary-light: #EBF2FA;
+  --color-secondary-dark: #274D7E;
+
+  --color-teal-accent: #159C91;
+  --color-teal-light: #E6F7F5;
+  --color-teal-dark: #0E6B63;
+
+  --color-canvas: #F8FAFC;
+  --color-main-text: #182536;
+  --color-muted-text: #64748B;
+  --color-border-subtle: #E7EDF3;
+  --color-border-card: #E2E8F0;
+
+  --font-heading: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased min-h-screen selection:bg-blue-100 selection:text-blue-900;
+    background-color: #F8FAFC;
+    color: #182536;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.025em;
   }
 }
 
-/* Custom scrollbar styling */
+/* Subtle, polished scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #F1F5F9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: #CBD5E1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #94A3B8;
 }
 
+/* ==========================================================================
+   PROGRESSIVE ENHANCEMENT SCROLL REVEALS
+   Content is 100% visible by default. Animation classes ONLY activate
+   when JavaScript successfully mounts and detects IntersectionObserver support.
+   ========================================================================== */
+
+/* Default: Fully visible, zero layout shift, resilient to JS failures */
+.reveal-init,
+.reveal-fade {
+  opacity: 1;
+  transform: none;
+}
+
+/* Activated progressive reveal when JS animation engine mounts */
+.has-scroll-anim .reveal-init:not(.revealed) {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.has-scroll-anim .reveal-init.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.has-scroll-anim .reveal-fade:not(.revealed) {
+  opacity: 0;
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
+}
+
+.has-scroll-anim .reveal-fade.revealed {
+  opacity: 1;
+}
+
+/* Stagger delay utilities */
+.reveal-delay-75 {
+  transition-delay: 75ms;
+}
+
+.reveal-delay-150 {
+  transition-delay: 150ms;
+}
+
+.reveal-delay-225 {
+  transition-delay: 225ms;
+}
+
+.reveal-delay-300 {
+  transition-delay: 300ms;
+}
+
+.reveal-delay-375 {
+  transition-delay: 375ms;
+}
+
+.reveal-delay-450 {
+  transition-delay: 450ms;
+}
+
+/* Smooth Image Reveal & Subtle Scale */
+.img-reveal-box {
+  overflow: hidden;
+  position: relative;
+}
+
+.img-reveal-box img {
+  transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.img-reveal-box:hover img {
+  transform: scale(1.025);
+}
+
+/* Card Hover Elevation Utility */
+.card-hover-lift {
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease;
+}
+
+.card-hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px -5px rgba(20, 43, 74, 0.08), 0 8px 10px -6px rgba(20, 43, 74, 0.04);
+}
+
+/* Button Micro-Interactions */
+button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* Print Utilities */
 @media print {
   body {
-    background: white;
+    background: white !important;
   }
   .no-print {
     display: none !important;
   }
   .print-only {
     display: block !important;
+  }
+}
+
+/* ==========================================================================
+   ACCESSIBILITY: PREFERS REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  .reveal-init,
+  .reveal-fade,
+  .has-scroll-anim .reveal-init:not(.revealed),
+  .has-scroll-anim .reveal-fade:not(.revealed),
+  .has-scroll-anim .reveal-init.revealed,
+  .has-scroll-anim .reveal-fade.revealed {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .img-reveal-box img,
+  .img-reveal-box:hover img {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .card-hover-lift:hover {
+    transform: none !important;
+  }
+
+  button:active:not(:disabled) {
+    transform: none !important;
+  }
+
+  * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
   }
 }
