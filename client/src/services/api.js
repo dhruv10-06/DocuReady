@@ -1,6 +1,23 @@
 // client/src/services/api.js
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+// Robust API and Backend URL normalization for Vercel/Railway deployments
+const RAW_API = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+
+export const API_BASE = !RAW_API
+  ? '/api'
+  : (RAW_API.endsWith('/api') ? RAW_API : `${RAW_API}/api`);
+
+export const BACKEND_BASE = !RAW_API
+  ? ''
+  : RAW_API.replace(/\/api$/, '');
+
+/**
+ * Resolve static sample document URL (points to deployed backend in production, or relative in local dev)
+ */
+export function getSampleDocUrl(relativePath) {
+  const clean = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+  return BACKEND_BASE ? `${BACKEND_BASE}${clean}` : clean;
+}
 const STORAGE_KEY = 'docuready_owned_audits';
 const ACTIVE_AUDIT_KEY = 'docuready_active_audit_id';
 const STEP_KEY_PREFIX = 'docuready_audit_step_';

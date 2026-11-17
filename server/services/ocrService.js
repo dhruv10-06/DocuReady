@@ -14,6 +14,7 @@ function getTrainedDataDirectory() {
     path.join(__dirname, '..', 'tessdata'),
     path.join(__dirname, '..'),
     path.join(process.cwd(), 'server', 'data', 'tessdata'),
+    path.join(process.cwd(), 'data', 'tessdata'),
     process.cwd(),
   ];
 

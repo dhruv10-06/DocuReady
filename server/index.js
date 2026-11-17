@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 
 // Configurable CORS protection
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim().replace(/\/+$/, ''))
   : [
       'http://localhost:5173',
       'http://localhost:5000',
@@ -25,6 +25,11 @@ app.use(cors({
   origin: (origin, callback) => {
     // Permit local scripts, curl, same-origin, or whitelisted frontend origins
     if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    // Automatically permit Vercel preview subdomains if a vercel.app domain is configured in allowedOrigins
+    const isVercelOrigin = origin.endsWith('.vercel.app') && allowedOrigins.some(o => o.includes('vercel.app'));
+    if (isVercelOrigin) {
       return callback(null, true);
     }
     return callback(new Error('Cross-Origin Request Blocked: Origin not permitted by DocuReady CORS policy.'));
@@ -50,8 +55,8 @@ app.use('/sample-docs', express.static(path.join(__dirname, 'public', 'sample-do
 // Mount API routes
 app.use('/api', auditRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+// Health check endpoints (supports both /health and /api/health for Railway / cloud probes)
+app.get(['/health', '/api/health'], (req, res) => {
   res.json({
     status: 'OK',
     service: 'DocuReady Pre-Submission Auditing API',
@@ -82,6 +87,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`DocuReady Backend Server running on http://localhost:${PORT}`);
+// Bind to 0.0.0.0 for containerized platforms like Railway
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`DocuReady Backend Server running on port ${PORT}`);
 });

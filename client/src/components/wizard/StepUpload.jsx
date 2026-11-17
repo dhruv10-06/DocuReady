@@ -15,7 +15,7 @@ import {
   FileCheck2,
   Info
 } from 'lucide-react';
-import { uploadDocuments, deleteDocument } from '../../services/api';
+import { uploadDocuments, deleteDocument, getSampleDocUrl } from '../../services/api';
 
 export default function StepUpload({
   auditId,
@@ -197,7 +197,7 @@ export default function StepUpload({
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
           <a
-            href="/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.pdf"
+            href={getSampleDocUrl('/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.pdf')}
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
@@ -205,7 +205,7 @@ export default function StepUpload({
             <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
           </a>
           <a
-            href="/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.png"
+            href={getSampleDocUrl('/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.png')}
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
@@ -213,7 +213,7 @@ export default function StepUpload({
             <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
           </a>
           <a
-            href="/sample-docs/Synthetic_Class_XII_Marksheet_Rahul.pdf"
+            href={getSampleDocUrl('/sample-docs/Synthetic_Class_XII_Marksheet_Rahul.pdf')}
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
@@ -221,7 +221,7 @@ export default function StepUpload({
             <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
           </a>
           <a
-            href="/sample-docs/Synthetic_Income_Certificate_Rahul.pdf"
+            href={getSampleDocUrl('/sample-docs/Synthetic_Income_Certificate_Rahul.pdf')}
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
@@ -229,7 +229,7 @@ export default function StepUpload({
             <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
           </a>
           <a
-            href="/sample-docs/Synthetic_Income_Certificate_Rahul.jpg"
+            href={getSampleDocUrl('/sample-docs/Synthetic_Income_Certificate_Rahul.jpg')}
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
