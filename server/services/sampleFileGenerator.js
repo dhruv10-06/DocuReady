@@ -3,6 +3,14 @@
 const fs = require('fs');
 const path = require('path');
 
+let createCanvas = null;
+try {
+  const canvasPkg = require('@napi-rs/canvas');
+  createCanvas = canvasPkg.createCanvas;
+} catch (e) {
+  // Graceful fallback if @napi-rs/canvas is unavailable
+}
+
 /**
  * Creates a compliant standard PDF buffer with embedded text lines
  */
@@ -60,6 +68,60 @@ ${xrefOffset}
 }
 
 /**
+ * Creates a high-clarity bitmap image buffer (PNG or JPEG) with clean typography for OCR testing
+ */
+function createImageFromLines(lines, format = 'png') {
+  if (!createCanvas) return null;
+  const width = 1000;
+  const height = Math.max(700, lines.length * 42 + 120);
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+
+  // Outer framing
+  ctx.strokeStyle = '#2563eb';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(20, 20, width - 40, height - 40);
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(28, 28, width - 56, height - 56);
+
+  let y = 80;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i < 3) {
+      ctx.font = 'bold 26px sans-serif';
+      ctx.fillStyle = '#1e3a8a';
+    } else if (
+      line.startsWith('Candidate Name') ||
+      line.startsWith('Date of Birth') ||
+      line.startsWith('Roll Number') ||
+      line.startsWith('Certificate No') ||
+      line.startsWith('Aadhaar Number')
+    ) {
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillStyle = '#0f172a';
+    } else if (line.startsWith('---') || line.startsWith('[')) {
+      ctx.font = '16px monospace';
+      ctx.fillStyle = '#64748b';
+    } else {
+      ctx.font = '20px sans-serif';
+      ctx.fillStyle = '#1e293b';
+    }
+
+    ctx.fillText(line, 60, y);
+    y += 38;
+  }
+
+  const mime = (format === 'jpeg' || format === 'jpg') ? 'image/jpeg' : 'image/png';
+  return canvas.toBuffer(mime);
+}
+
+/**
  * Ensures sample directory exists and writes sample files
  */
 function ensureSampleFiles() {
@@ -78,7 +140,7 @@ function ensureSampleFiles() {
     "Father's Name: Suresh Sharma",
     'Date of Birth: 12/05/2005',
     'Gender: MALE',
-    'Aadhaar Number: XXXX-XXXX-9912',
+    'Aadhaar Number: 9876-5432-9912',
     'Address: H.No 42, Green Park Extension, New Delhi - 110016',
     'Date of Issue: 10/01/2021',
     'Status: ACTIVE / VERIFIED',
@@ -86,6 +148,10 @@ function ensureSampleFiles() {
     '[SYNTHETIC DEMO DOCUMENT FOR EVALUATION PURPOSES ONLY]',
   ];
   fs.writeFileSync(path.join(sampleDir, 'Synthetic_Aadhaar_Rahul_Sharma.pdf'), createPdfFromLines(aadhaarLines));
+  const aadhaarPng = createImageFromLines(aadhaarLines, 'png');
+  if (aadhaarPng) {
+    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Aadhaar_Rahul_Sharma.png'), aadhaarPng);
+  }
 
   // 2. Marksheet (Class XII)
   const marksheetLines = [
@@ -128,12 +194,17 @@ function ensureSampleFiles() {
     '[SYNTHETIC DEMO DOCUMENT FOR EVALUATION PURPOSES ONLY]',
   ];
   fs.writeFileSync(path.join(sampleDir, 'Synthetic_Income_Certificate_Rahul.pdf'), createPdfFromLines(incomeLines));
+  const incomeJpg = createImageFromLines(incomeLines, 'jpeg');
+  if (incomeJpg) {
+    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Income_Certificate_Rahul.jpg'), incomeJpg);
+  }
 
   console.log('Sample synthetic documents generated successfully at:', sampleDir);
 }
 
 module.exports = {
   createPdfFromLines,
+  createImageFromLines,
   ensureSampleFiles,
 };
 

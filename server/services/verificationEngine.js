@@ -163,16 +163,57 @@ function compareNames(nameA, nameB) {
 }
 
 /**
- * Standardize and parse DD/MM/YYYY dates
+ * Format a Date object to DD/MM/YYYY string
+ */
+function formatDDMMYYYY(date) {
+  if (!date || isNaN(date.getTime())) return '';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Standardize and parse dates supporting DD/MM/YYYY, D/M/YYYY, DD-MM-YYYY, D-M-YYYY, and YYYY-MM-DD.
+ * Strictly validates that date values are real calendar dates (prevents rollover like 31/02/2025).
  */
 function parseStandardDate(dateStr) {
-  if (!dateStr) return null;
-  const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return null;
-  const day = parseInt(match[1], 10);
-  const month = parseInt(match[2], 10);
-  const year = parseInt(match[3], 10);
-  return new Date(Date.UTC(year, month - 1, day));
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const cleanStr = dateStr.trim();
+
+  let day, month, year;
+
+  // Format 1: DD/MM/YYYY, D/M/YYYY, DD-MM-YYYY, D-M-YYYY
+  const dmyMatch = cleanStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    day = parseInt(dmyMatch[1], 10);
+    month = parseInt(dmyMatch[2], 10);
+    year = parseInt(dmyMatch[3], 10);
+  } else {
+    // Format 2: YYYY-MM-DD, YYYY/MM/DD, YYYY-M-D
+    const ymdMatch = cleanStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (ymdMatch) {
+      year = parseInt(ymdMatch[1], 10);
+      month = parseInt(ymdMatch[2], 10);
+      day = parseInt(ymdMatch[3], 10);
+    } else {
+      return null;
+    }
+  }
+
+  // Range validation
+  if (month < 1 || month > 12) return null;
+  if (year < 1900 || year > 2100) return null;
+
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (isNaN(d.getTime())) return null;
+
+  // Verify no calendar rollover occurred (e.g. Feb 31 becoming Mar 3)
+  if (d.getUTCDate() !== day || d.getUTCMonth() !== month - 1 || d.getUTCFullYear() !== year) {
+    return null;
+  }
+
+  return d;
 }
 
 /**
@@ -189,8 +230,8 @@ function compareDateOfBirth(dobA, dobB) {
     };
   }
 
-  const cleanA = dobA.trim();
-  const cleanB = dobB.trim();
+  const cleanA = String(dobA).trim();
+  const cleanB = String(dobB).trim();
 
   if (cleanA === cleanB) {
     return {
@@ -201,6 +242,47 @@ function compareDateOfBirth(dobA, dobB) {
     };
   }
 
+  const parsedA = parseStandardDate(cleanA);
+  const parsedB = parseStandardDate(cleanB);
+
+  // If both parse into valid dates and are identical timestamp
+  if (parsedA && parsedB && parsedA.getTime() === parsedB.getTime()) {
+    return {
+      status: 'MATCH',
+      severity: 'PASS',
+      type: 'EXACT_MATCH',
+      message: `Date of birth matches (${cleanA} and ${cleanB} represent the same date).`,
+    };
+  }
+
+  // If both parsed but differ
+  if (parsedA && parsedB) {
+    const yearA = parsedA.getUTCFullYear();
+    const yearB = parsedB.getUTCFullYear();
+
+    if (yearA !== yearB) {
+      return {
+        status: 'MISMATCH',
+        severity: 'CRITICAL',
+        type: 'DOB_YEAR_MISMATCH',
+        message: `Date of birth mismatch: Year of birth differs (${yearA} in one document vs ${yearB} in another; full dates: ${cleanA} vs ${cleanB}).`,
+        recommendation: 'High rejection risk. Government and scholarship portals validate DOB strictly against 10th marksheet / Aadhaar database. Obtain a corrected certificate before submitting.',
+      };
+    }
+
+    // Check if day and month are flipped (e.g. 05/12/2005 vs 12/05/2005)
+    if (parsedA.getUTCDate() === parsedB.getUTCMonth() + 1 && parsedA.getUTCMonth() + 1 === parsedB.getUTCDate()) {
+      return {
+        status: 'AMBIGUOUS_FORMAT',
+        severity: 'WARNING',
+        type: 'DOB_FORMAT_FLIPPED',
+        message: `Date of birth formatting ambiguity detected (${cleanA} vs ${cleanB}). Day and month appear transposed (DD/MM vs MM/DD).`,
+        recommendation: 'Verify the intended date format in each certificate to avoid rejection caused by DD/MM/YYYY vs MM/DD/YYYY mismatch.',
+      };
+    }
+  }
+
+  // Fallback string-based component analysis if non-standard format
   const partsA = cleanA.split(/[\/\-\.]/);
   const partsB = cleanB.split(/[\/\-\.]/);
 
@@ -208,7 +290,6 @@ function compareDateOfBirth(dobA, dobB) {
     const [dayA, monthA, yearA] = partsA;
     const [dayB, monthB, yearB] = partsB;
 
-    // Check if month and day might be flipped (e.g. 05/12/2005 vs 12/05/2005)
     if (dayA === monthB && monthA === dayB && yearA === yearB) {
       return {
         status: 'AMBIGUOUS_FORMAT',
@@ -219,7 +300,6 @@ function compareDateOfBirth(dobA, dobB) {
       };
     }
 
-    // Year mismatch
     if (yearA !== yearB) {
       return {
         status: 'MISMATCH',
@@ -244,7 +324,8 @@ function compareDateOfBirth(dobA, dobB) {
  * Check if a certificate is expired or older than permitted threshold
  */
 function checkDocumentValidity(doc, categoryRules) {
-  const currentDate = new Date('2026-11-15T00:00:00Z');
+  const currentDate = new Date();
+  const currentDateFormatted = formatDDMMYYYY(currentDate);
   const issues = [];
   const { extractedData, docCategory, filename } = doc;
 
@@ -260,7 +341,7 @@ function checkDocumentValidity(doc, categoryRules) {
           type: 'EXPIRED_DOCUMENT',
           docCategory,
           filename,
-          message: `Document expired on ${extractedData.expiryDate} (Current date: 15/11/2026).`,
+          message: `Document expired on ${extractedData.expiryDate} (Current date: ${currentDateFormatted}).`,
           recommendation: 'Obtain an updated, non-expired certificate prior to submission.',
         });
       } else {
@@ -313,10 +394,10 @@ function performAuditVerification(audit) {
   const rules = categoryConfig.rules || {};
 
   const auditChecks = [];
-  const crossDocDiscrepancies = [];
+  const rawDiscrepancies = [];
   const missingDocuments = [];
   const unreadableDocuments = [];
-  const correctiveActions = [];
+  const rawCorrectiveActions = [];
 
   // Group uploaded documents by category
   const uploadedCategoryMap = {};
@@ -347,7 +428,7 @@ function performAuditVerification(audit) {
         details: `Missing mandatory document category: ${reqDoc.name}.`,
       });
 
-      correctiveActions.push({
+      rawCorrectiveActions.push({
         priority: 'HIGH',
         category: 'Missing Document',
         action: `Upload your official ${reqDoc.name} before submitting to avoid immediate disqualification.`,
@@ -402,7 +483,7 @@ function performAuditVerification(audit) {
         details: `Document text could not be reliably extracted. Reason: ${doc.extractedData?.unreadableReason || 'Unreadable scan'}.`,
       });
 
-      correctiveActions.push({
+      rawCorrectiveActions.push({
         priority: 'HIGH',
         category: 'Scan Legibility',
         action: `Re-scan "${doc.filename}" at 300 DPI or higher contrast, ensuring all text and stamps are sharply focused.`,
@@ -435,7 +516,7 @@ function performAuditVerification(audit) {
           ? `File format "${doc.mimeType}" is not recommended. Use PDF, JPG, or PNG.`
           : `File size (${sizeInMB.toFixed(1)} MB) exceeds maximum portal limit of ${rules.maxAllowedFileSizeMB} MB.`,
       });
-      correctiveActions.push({
+      rawCorrectiveActions.push({
         priority: 'MEDIUM',
         category: 'File Specifications',
         action: `Compress or convert "${doc.filename}" to meet standard portal constraints (PDF/JPG under 10MB).`,
@@ -455,14 +536,14 @@ function performAuditVerification(audit) {
     // 4. Validity & Expiry Checks
     const validityIssues = checkDocumentValidity(doc, rules);
     for (const vIssue of validityIssues) {
-      crossDocDiscrepancies.push({
+      rawDiscrepancies.push({
         field: 'DOCUMENT_VALIDITY',
         severity: vIssue.severity,
         type: vIssue.type,
         docCategory: vIssue.docCategory,
         sourceA: doc.filename,
         valueA: doc.extractedData?.issueDate ? `Issued: ${doc.extractedData.issueDate}` : `Expired: ${doc.extractedData?.expiryDate}`,
-        sourceB: 'System Audit Date (15/11/2026)',
+        sourceB: `System Audit Date (${formatDDMMYYYY(new Date())})`,
         valueB: 'Current Active Requirement',
         message: vIssue.message,
         recommendation: vIssue.recommendation,
@@ -477,7 +558,7 @@ function performAuditVerification(audit) {
         details: vIssue.message,
       });
 
-      correctiveActions.push({
+      rawCorrectiveActions.push({
         priority: vIssue.severity === 'CRITICAL' ? 'HIGH' : 'MEDIUM',
         category: 'Certificate Validity',
         action: vIssue.recommendation,
@@ -509,7 +590,7 @@ function performAuditVerification(audit) {
             details: `Name consistent: "${name1}" matches "${name2}".`,
           });
         } else if (comparison.severity === 'WARNING') {
-          crossDocDiscrepancies.push({
+          rawDiscrepancies.push({
             field: 'CANDIDATE_NAME',
             severity: 'WARNING',
             docCategoryA: doc1.docCategory,
@@ -532,14 +613,14 @@ function performAuditVerification(audit) {
             details: comparison.message,
           });
 
-          correctiveActions.push({
+          rawCorrectiveActions.push({
             priority: 'MEDIUM',
             category: 'Name Consistency',
             action: `${comparison.recommendation} (Observed: "${name1}" in ${doc1.filename} vs "${name2}" in ${doc2.filename}).`,
             targetDocument: `${doc1.filename} / ${doc2.filename}`,
           });
         } else if (comparison.severity === 'CRITICAL') {
-          crossDocDiscrepancies.push({
+          rawDiscrepancies.push({
             field: 'CANDIDATE_NAME',
             severity: 'CRITICAL',
             docCategoryA: doc1.docCategory,
@@ -562,7 +643,7 @@ function performAuditVerification(audit) {
             details: comparison.message,
           });
 
-          correctiveActions.push({
+          rawCorrectiveActions.push({
             priority: 'HIGH',
             category: 'Identity Mismatch',
             action: `${comparison.recommendation} (Conflicting names: "${name1}" vs "${name2}").`,
@@ -596,7 +677,7 @@ function performAuditVerification(audit) {
             details: `DOB matches: ${dob1}.`,
           });
         } else {
-          crossDocDiscrepancies.push({
+          rawDiscrepancies.push({
             field: 'DATE_OF_BIRTH',
             severity: dobComparison.severity,
             docCategoryA: doc1.docCategory,
@@ -619,13 +700,61 @@ function performAuditVerification(audit) {
             details: dobComparison.message,
           });
 
-          correctiveActions.push({
+          rawCorrectiveActions.push({
             priority: 'HIGH',
             category: 'Date of Birth Mismatch',
             action: `${dobComparison.recommendation} (Conflicting values: ${dob1} in ${doc1.filename} vs ${dob2} in ${doc2.filename}).`,
             targetDocument: `${doc1.filename} / ${doc2.filename}`,
           });
         }
+      }
+    }
+  }
+
+  // Deduplicate cross-document discrepancies
+  const seenDiscKeys = new Set();
+  const crossDocDiscrepancies = [];
+  for (const disc of rawDiscrepancies) {
+    const normValA = String(disc.valueA || '').trim().toLowerCase();
+    const normValB = String(disc.valueB || '').trim().toLowerCase();
+    const sortedVals = [normValA, normValB].sort().join(':::');
+    const discKey = `${disc.field}:::${disc.type || ''}:::${sortedVals}`;
+    if (!seenDiscKeys.has(discKey)) {
+      seenDiscKeys.add(discKey);
+      crossDocDiscrepancies.push({ ...disc });
+    } else {
+      // Append secondary source document name if not already listed
+      const existing = crossDocDiscrepancies.find(d => {
+        const eA = String(d.valueA || '').trim().toLowerCase();
+        const eB = String(d.valueB || '').trim().toLowerCase();
+        return d.field === disc.field && (d.type || '') === (disc.type || '') && [eA, eB].sort().join(':::') === sortedVals;
+      });
+      if (existing && disc.sourceB && !existing.sourceB.includes(disc.sourceB)) {
+        existing.sourceB = `${existing.sourceB}, ${disc.sourceB}`;
+      }
+    }
+  }
+
+  // Deduplicate corrective actions
+  const seenActionKeys = new Set();
+  const correctiveActions = [];
+  for (const action of rawCorrectiveActions) {
+    // Deduplicate by category, priority, and normalized core action advice (omitting variable parenthetical details)
+    const coreText = (action.action || '').split('(')[0].trim().toLowerCase();
+    const actionKey = `${action.category}:::${action.priority}:::${coreText}`;
+    if (!seenActionKeys.has(actionKey)) {
+      seenActionKeys.add(actionKey);
+      correctiveActions.push({ ...action });
+    } else {
+      // Merge target document labels
+      const existing = correctiveActions.find(a => {
+        const existingCore = (a.action || '').split('(')[0].trim().toLowerCase();
+        return a.category === action.category && a.priority === action.priority && existingCore === coreText;
+      });
+      if (existing && action.targetDocument && !existing.targetDocument.includes(action.targetDocument)) {
+        const existingTargets = existing.targetDocument.split(' / ');
+        const newTargets = action.targetDocument.split(' / ');
+        existing.targetDocument = Array.from(new Set([...existingTargets, ...newTargets])).join(' / ');
       }
     }
   }
@@ -703,4 +832,6 @@ module.exports = {
   compareDateOfBirth,
   checkDocumentValidity,
   normalizeName,
+  parseStandardDate,
+  formatDDMMYYYY,
 };

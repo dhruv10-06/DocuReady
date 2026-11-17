@@ -2,8 +2,29 @@
 
 const fs = require('fs');
 const path = require('path');
-const Tesseract = require('tesseract.js');
+const { createWorker } = require('tesseract.js');
 const { extractDocumentInformation } = require('./extractorService');
+
+/**
+ * Locate local traineddata directory deterministically
+ */
+function getTrainedDataDirectory() {
+  const candidatePaths = [
+    path.join(__dirname, '..', 'data', 'tessdata'),
+    path.join(__dirname, '..', 'tessdata'),
+    path.join(__dirname, '..'),
+    path.join(process.cwd(), 'server', 'data', 'tessdata'),
+    process.cwd(),
+  ];
+
+  for (const dir of candidatePaths) {
+    if (fs.existsSync(path.join(dir, 'eng.traineddata')) || fs.existsSync(path.join(dir, 'eng.traineddata.gz'))) {
+      return dir;
+    }
+  }
+
+  return path.join(__dirname, '..', 'data', 'tessdata');
+}
 
 /**
  * Extract text from PDF buffer/file using PDFParse
@@ -48,32 +69,51 @@ async function extractTextFromPDF(filePathOrBuffer) {
 }
 
 /**
- * Extract text from Image file using Tesseract.js OCR
+ * Extract text from Image file using Tesseract.js OCR with robust worker lifecycle
  */
 async function extractTextFromImage(filePath) {
+  let worker = null;
   try {
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found at path: ${filePath}`);
     }
 
-    // Run Tesseract OCR
-    const result = await Tesseract.recognize(filePath, 'eng', {
-      logger: m => {
-        // Silent or debug log
+    const tessDataDir = getTrainedDataDirectory();
+
+    // Initialize worker with explicit local traineddata path and safe error boundary
+    worker = await createWorker('eng', 1, {
+      langPath: tessDataDir,
+      cachePath: tessDataDir,
+      gzip: false,
+      errorHandler: (err) => {
+        console.error('Tesseract Worker caught error:', err?.message || err);
       },
+      logger: () => {},
     });
 
+    const result = await worker.recognize(filePath);
     const ocrText = result?.data?.text || '';
-    const ocrConfidence = result?.data?.confidence || 0;
+    const ocrConfidence = Math.round(result?.data?.confidence || 0);
+
+    await worker.terminate();
+    worker = null;
 
     return {
       text: ocrText,
-      confidence: Math.round(ocrConfidence),
+      confidence: ocrConfidence,
       success: true,
       error: null,
     };
   } catch (err) {
-    console.error('Tesseract OCR error:', err);
+    console.error('Tesseract OCR error handled safely:', err.message);
+    if (worker) {
+      try {
+        await worker.terminate();
+      } catch (termErr) {
+        // ignore termination errors on failure
+      }
+      worker = null;
+    }
     return {
       text: '',
       confidence: 0,
@@ -101,7 +141,6 @@ async function processDocumentFile(fileInfo, docCategory) {
       extractionError = pdfResult.error;
     }
 
-    // If PDF text is very sparse (scanned PDF), try fallback if feasible
     if (!rawText || rawText.trim().length < 20) {
       console.log(`PDF text is sparse (${rawText.length} chars). Might be a scanned image PDF.`);
     }
@@ -118,13 +157,13 @@ async function processDocumentFile(fileInfo, docCategory) {
   // Run Information Extraction
   const extracted = extractDocumentInformation(rawText, docCategory);
 
-  // If OCR had its own confidence, blend it
-  if (ocrConfidence > 0 && extracted.confidence) {
-    extracted.confidence = Math.round((extracted.confidence * 0.6) + (ocrConfidence * 0.4));
-  }
-
-  if (extractionError && !extracted.isReadable) {
+  // If extraction error occurred, do not classify failed OCR as successful extraction
+  if (extractionError) {
+    extracted.isReadable = false;
     extracted.unreadableReason = extractionError;
+    extracted.confidence = 0;
+  } else if (ocrConfidence > 0 && extracted.confidence) {
+    extracted.confidence = Math.round((extracted.confidence * 0.6) + (ocrConfidence * 0.4));
   }
 
   return {

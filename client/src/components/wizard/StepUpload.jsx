@@ -190,18 +190,26 @@ export default function StepUpload({
               </h4>
             </div>
             <p className="text-xs text-slate-500">
-              Download these generated benchmark PDF files to test manual drag-and-drop and OCR processing:
+              Download these generated benchmark PDF, PNG, and JPG files to test manual drag-and-drop and OCR processing:
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
           <a
             href="/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.pdf"
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
-            <span className="truncate">Aadhaar_Rahul_Sharma.pdf</span>
+            <span className="truncate">Aadhaar (PDF)</span>
+            <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+          </a>
+          <a
+            href="/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.png"
+            download
+            className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
+          >
+            <span className="truncate">Aadhaar (PNG)</span>
             <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
           </a>
           <a
@@ -209,7 +217,7 @@ export default function StepUpload({
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
-            <span className="truncate">Marksheet_Rahul.pdf</span>
+            <span className="truncate">Marksheet (PDF)</span>
             <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
           </a>
           <a
@@ -217,7 +225,15 @@ export default function StepUpload({
             download
             className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
           >
-            <span className="truncate">Income_Cert_Rahul.pdf</span>
+            <span className="truncate">Income (PDF)</span>
+            <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+          </a>
+          <a
+            href="/sample-docs/Synthetic_Income_Certificate_Rahul.jpg"
+            download
+            className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-between shadow-2xs"
+          >
+            <span className="truncate">Income (JPG)</span>
             <DownloadCloud className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
           </a>
         </div>
