@@ -17,7 +17,7 @@ import {
   DownloadCloud
 } from 'lucide-react';
 
-export default function LandingPage({ setView, onQuickDemo }) {
+export default function LandingPage({ setView, onQuickDemo, activeAuditId, onResumeAudit }) {
   return (
     <div className="space-y-16 pb-16">
       {/* Hero Section */}
@@ -35,6 +35,22 @@ export default function LandingPage({ setView, onQuickDemo }) {
         <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
           Every year, thousands of qualified applicants are disqualified from scholarships, university admissions, and government schemes due to preventable cross-document discrepancies and missing paperwork.
         </p>
+
+        {/* Active In-Progress Audit Resume Banner */}
+        {activeAuditId && (
+          <div className="max-w-md mx-auto mb-8 p-3.5 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs">
+            <div className="flex items-center gap-2.5 text-blue-900 font-medium">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span>You have an active in-progress audit session.</span>
+            </div>
+            <button
+              onClick={onResumeAudit}
+              className="px-3.5 py-1.5 font-bold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 rounded-xl transition shadow-2xs shrink-0"
+            >
+              Resume Audit →
+            </button>
+          </div>
+        )}
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">

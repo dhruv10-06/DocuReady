@@ -15,7 +15,13 @@ import {
 } from 'lucide-react';
 import { fetchAudits, deleteAudit } from '../services/api';
 
-export default function DashboardPage({ setView, onSelectAudit, onQuickDemo }) {
+export default function DashboardPage({ 
+  setView, 
+  onSelectAudit, 
+  onQuickDemo,
+  activeAuditId,
+  onAuditDeleted
+}) {
   const [audits, setAudits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,6 +49,9 @@ export default function DashboardPage({ setView, onSelectAudit, onQuickDemo }) {
       try {
         await deleteAudit(id);
         setAudits(prev => prev.filter(a => a.id !== id));
+        if (onAuditDeleted) {
+          onAuditDeleted(id);
+        }
       } catch (err) {
         alert(`Failed to delete audit: ${err.message}`);
       }
@@ -82,6 +91,8 @@ export default function DashboardPage({ setView, onSelectAudit, onQuickDemo }) {
     );
   };
 
+  const activeAudit = audits.find(a => a.id === activeAuditId);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header */}
@@ -111,6 +122,37 @@ export default function DashboardPage({ setView, onSelectAudit, onQuickDemo }) {
           </button>
         </div>
       </div>
+
+      {/* In-Progress Active Audit Banner */}
+      {activeAudit && (
+        <div className="bg-gradient-to-r from-blue-50 via-blue-50/60 to-white border border-blue-200 rounded-2xl p-5 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-blue-100 text-blue-700 rounded-xl shrink-0 mt-0.5">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">In-Progress Audit Session</h3>
+                  <span className="px-2 py-0.5 text-[11px] font-semibold bg-blue-100 text-blue-800 rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                    Active
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Applicant: <strong>{activeAudit.applicantName || 'Applicant'}</strong> &bull; Category: <strong>{activeAudit.category?.replace(/_/g, ' ')}</strong> &bull; {activeAudit.documentsCount} document(s) uploaded.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onSelectAudit(activeAudit.id)}
+              className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition shadow-xs flex items-center gap-1.5"
+            >
+              <span>Resume This Audit →</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Synthetic Benchmark Callout Card */}
       <div className="bg-gradient-to-r from-amber-50/80 via-amber-50/40 to-white border border-amber-200/80 rounded-2xl p-5 shadow-xs">
@@ -195,53 +237,63 @@ export default function DashboardPage({ setView, onSelectAudit, onQuickDemo }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {audits.map(audit => (
-                  <tr 
-                    key={audit.id} 
-                    onClick={() => onSelectAudit(audit.id)}
-                    className="hover:bg-slate-50/80 cursor-pointer transition"
-                  >
-                    <td className="px-6 py-4 font-semibold text-slate-900">
-                      <div>{audit.applicantName || 'Anonymous Applicant'}</div>
-                      <div className="text-[11px] font-mono text-slate-400">{audit.id.slice(0, 8)}...</div>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-slate-600">
-                      {audit.category?.replace(/_/g, ' ') || 'SCHOLARSHIP'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-slate-800">{audit.documentsCount}</span> file(s)
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(audit.statusBadgeText, audit.statusColor)}
-                    </td>
-                    <td className="px-6 py-4 font-bold text-slate-800">
-                      {audit.readinessScore !== null ? `${audit.readinessScore}%` : '—'}
-                    </td>
-                    <td className="px-6 py-4 text-slate-400 text-[11px]">
-                      {new Date(audit.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectAudit(audit.id);
-                          }}
-                          className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
-                        >
-                          View Report
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(e, audit.id)}
-                          className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Permanently wipe files and delete audit"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {audits.map(audit => {
+                  const isActive = audit.id === activeAuditId;
+                  return (
+                    <tr 
+                      key={audit.id} 
+                      onClick={() => onSelectAudit(audit.id)}
+                      className={`hover:bg-slate-50/80 cursor-pointer transition ${isActive ? 'bg-blue-50/30' : ''}`}
+                    >
+                      <td className="px-6 py-4 font-semibold text-slate-900">
+                        <div className="flex items-center gap-2">
+                          <span>{audit.applicantName || 'Anonymous Applicant'}</span>
+                          {isActive && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded">
+                              ACTIVE
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-400">{audit.id.slice(0, 8)}...</div>
+                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-600">
+                        {audit.category?.replace(/_/g, ' ') || 'SCHOLARSHIP'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-semibold text-slate-800">{audit.documentsCount}</span> file(s)
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(audit.statusBadgeText, audit.statusColor)}
+                      </td>
+                      <td className="px-6 py-4 font-bold text-slate-800">
+                        {audit.readinessScore !== null ? `${audit.readinessScore}%` : '—'}
+                      </td>
+                      <td className="px-6 py-4 text-slate-400 text-[11px]">
+                        {new Date(audit.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectAudit(audit.id);
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                          >
+                            View Report
+                          </button>
+                          <button
+                            onClick={(e) => handleDelete(e, audit.id)}
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                            title="Permanently wipe files and delete audit"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -250,4 +302,3 @@ export default function DashboardPage({ setView, onSelectAudit, onQuickDemo }) {
     </div>
   );
 }
-

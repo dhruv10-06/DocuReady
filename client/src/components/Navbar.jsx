@@ -1,9 +1,9 @@
 // client/src/components/Navbar.jsx
 
 import React from 'react';
-import { ShieldCheck, FileCheck2, Sparkles, LayoutDashboard, Lock } from 'lucide-react';
+import { ShieldCheck, FileCheck2, Sparkles, LayoutDashboard } from 'lucide-react';
 
-export default function Navbar({ currentView, setView, onQuickDemo }) {
+export default function Navbar({ currentView, setView, onQuickDemo, activeAuditId, onResumeAudit }) {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -51,6 +51,19 @@ export default function Navbar({ currentView, setView, onQuickDemo }) {
               <span>Dashboard</span>
             </button>
 
+            {/* Resume Active in-progress audit if navigating from Overview / Dashboard */}
+            {activeAuditId && currentView !== 'new-audit' && (
+              <button
+                onClick={onResumeAudit}
+                className="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition flex items-center gap-1.5 shadow-2xs"
+                title="Resume active in-progress audit"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="hidden md:inline">Resume Active Audit</span>
+                <span className="md:hidden">Resume</span>
+              </button>
+            )}
+
             {/* Quick Synthetic Demo trigger */}
             <button
               onClick={onQuickDemo}
@@ -76,4 +89,3 @@ export default function Navbar({ currentView, setView, onQuickDemo }) {
     </header>
   );
 }
-

@@ -1,6 +1,6 @@
 // client/src/pages/NewAuditPage.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileCheck2, 
   UploadCloud, 
@@ -8,14 +8,24 @@ import {
   Search, 
   FileText, 
   Sparkles,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import { 
   fetchCategories, 
   createAudit, 
   loadDemoCase, 
   verifyAudit, 
-  fetchAuditDetails 
+  fetchAuditDetails,
+  saveAuditStep,
+  getAuditStep,
+  clearAuditStep,
+  setActiveAuditId,
+  clearActiveAuditId,
+  saveStep1Draft,
+  getStep1Draft,
+  clearStep1Draft
 } from '../services/api';
 
 import StepCategory from '../components/wizard/StepCategory';
@@ -27,7 +37,9 @@ import StepReport from '../components/wizard/StepReport';
 export default function NewAuditPage({ 
   existingAuditId, 
   setView, 
-  initialDemo = false 
+  initialDemo = false,
+  onAuditCreated,
+  onStartNew
 }) {
   const [categories, setCategories] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
@@ -46,11 +58,46 @@ export default function NewAuditPage({
   const [report, setReport] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Load Categories on mount
+  // Guard against React StrictMode concurrent double-mount
+  const demoMountedRef = useRef(false);
+  const isDemoRunningRef = useRef(false);
+
+  // Step navigation helper with step persistence
+  const goToStep = (step) => {
+    setCurrentStep(step);
+    if (audit?.id) {
+      saveAuditStep(audit.id, step);
+    }
+  };
+
+  // Step 1 Draft Handlers
+  const handleUpdateCategory = (cat) => {
+    setSelectedCategory(cat);
+    if (!audit) {
+      saveStep1Draft({ selectedCategory: cat, applicantName, applicationNumber });
+    }
+  };
+
+  const handleUpdateApplicantName = (name) => {
+    setApplicantName(name);
+    if (!audit) {
+      saveStep1Draft({ selectedCategory, applicantName: name, applicationNumber });
+    }
+  };
+
+  const handleUpdateApplicationNumber = (num) => {
+    setApplicationNumber(num);
+    if (!audit) {
+      saveStep1Draft({ selectedCategory, applicantName, applicationNumber: num });
+    }
+  };
+
+  // Load Categories & Audit Details on mount
   useEffect(() => {
     async function init() {
       try {
         setLoading(true);
+        setError(null);
         const catData = await fetchCategories();
         setCategories(catData.categories || []);
         setDocumentTypes(catData.documentTypes || []);
@@ -64,12 +111,39 @@ export default function NewAuditPage({
           setDocuments(auditData.documents || []);
           if (auditData.report) {
             setReport(auditData.report);
-            setCurrentStep(5); // Show report
-          } else if (auditData.documents?.length > 0) {
-            setCurrentStep(3); // Show review
           }
-        } else if (initialDemo) {
+          setActiveAuditId(auditData.id);
+
+          // Resolve step: respect saved step if valid, otherwise compute best step
+          const savedStep = getAuditStep(existingAuditId);
+          if (savedStep && savedStep >= 1 && savedStep <= 5) {
+            if ((savedStep === 4 || savedStep === 5) && !auditData.report) {
+              setCurrentStep(auditData.documents?.length > 0 ? 3 : 2);
+            } else if (savedStep === 3 && (!auditData.documents || auditData.documents.length === 0)) {
+              setCurrentStep(2);
+            } else {
+              setCurrentStep(savedStep);
+            }
+          } else {
+            if (auditData.report) {
+              setCurrentStep(5);
+            } else if (auditData.documents?.length > 0) {
+              setCurrentStep(3);
+            } else {
+              setCurrentStep(2);
+            }
+          }
+        } else if (initialDemo && !demoMountedRef.current) {
+          demoMountedRef.current = true;
           await handleLoadDemoDirectly();
+        } else {
+          // Restore unsubmitted Step 1 draft if present
+          const draft = getStep1Draft();
+          if (draft) {
+            if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory);
+            if (draft.applicantName) setApplicantName(draft.applicantName);
+            if (draft.applicationNumber) setApplicationNumber(draft.applicationNumber);
+          }
         }
       } catch (err) {
         setError(err.message);
@@ -82,6 +156,8 @@ export default function NewAuditPage({
 
   // Load Synthetic Demo Scenario Direct handler
   const handleLoadDemoDirectly = async () => {
+    if (isDemoRunningRef.current) return;
+    isDemoRunningRef.current = true;
     try {
       setIsProcessing(true);
       // 1. Create audit
@@ -90,6 +166,11 @@ export default function NewAuditPage({
         applicantName: 'Rahul Sharma',
         applicationNumber: 'NSP-DEMO-2026-99',
       });
+      setActiveAuditId(newAudit.id);
+      if (onAuditCreated) {
+        onAuditCreated(newAudit.id);
+      }
+
       // 2. Load demo data & verify
       const populated = await loadDemoCase(newAudit.id);
       setAudit(populated);
@@ -98,11 +179,14 @@ export default function NewAuditPage({
       setApplicationNumber(populated.applicationNumber);
       setDocuments(populated.documents);
       setReport(populated.report);
-      setCurrentStep(4); // Jump directly to Verification step to show the discrepancies!
+      clearStep1Draft();
+      saveAuditStep(newAudit.id, 4);
+      setCurrentStep(4); // Jump directly to Verification step to show discrepancies
     } catch (err) {
       alert(`Failed to load demo scenario: ${err.message}`);
     } finally {
       setIsProcessing(false);
+      isDemoRunningRef.current = false;
     }
   };
 
@@ -118,14 +202,20 @@ export default function NewAuditPage({
         });
         setAudit(newAudit);
         setDocuments(newAudit.documents || []);
+        clearStep1Draft();
+        setActiveAuditId(newAudit.id);
+        saveAuditStep(newAudit.id, 2);
         setCurrentStep(2);
+        if (onAuditCreated) {
+          onAuditCreated(newAudit.id);
+        }
       } catch (err) {
         alert(`Failed to initialize audit session: ${err.message}`);
       } finally {
         setIsProcessing(false);
       }
     } else {
-      setCurrentStep(2);
+      goToStep(2);
     }
   };
 
@@ -135,7 +225,7 @@ export default function NewAuditPage({
       setIsProcessing(true);
       const res = await verifyAudit(audit.id);
       setReport(res.report);
-      setCurrentStep(4);
+      goToStep(4);
     } catch (err) {
       alert(`Verification failed: ${err.message}`);
     } finally {
@@ -145,12 +235,20 @@ export default function NewAuditPage({
 
   // Reset / Start fresh
   const handleReset = () => {
+    if (audit?.id) {
+      clearAuditStep(audit.id);
+    }
+    clearActiveAuditId();
+    clearStep1Draft();
     setAudit(null);
     setDocuments([]);
     setReport(null);
     setApplicantName('');
     setApplicationNumber('');
     setCurrentStep(1);
+    if (onStartNew) {
+      onStartNew();
+    }
   };
 
   const steps = [
@@ -166,6 +264,40 @@ export default function NewAuditPage({
       <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         <p className="text-xs font-semibold text-slate-500">Initializing DocuReady Audit Environment...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-xl mx-auto my-12 p-8 bg-white border border-rose-200 rounded-2xl shadow-sm text-center space-y-4">
+        <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Audit Session Unavailable</h3>
+        <p className="text-sm text-slate-600">{error}</p>
+        <p className="text-xs text-slate-500">
+          Audit sessions expire after 2 hours of inactivity or when the server restarts for applicant privacy.
+        </p>
+        <div className="pt-2 flex justify-center gap-3">
+          <button
+            onClick={() => {
+              clearActiveAuditId();
+              if (existingAuditId) clearAuditStep(existingAuditId);
+              if (onStartNew) onStartNew();
+              else setView('new-audit');
+            }}
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+          >
+            Start Fresh Audit
+          </button>
+          <button
+            onClick={() => setView('dashboard')}
+            className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition"
+          >
+            Go to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
@@ -186,7 +318,7 @@ export default function NewAuditPage({
                 onClick={() => {
                   // Only allow jumping back to earlier steps or if audit exists
                   if (audit && s.num < currentStep) {
-                    setCurrentStep(s.num);
+                    goToStep(s.num);
                   }
                 }}
               >
@@ -226,11 +358,11 @@ export default function NewAuditPage({
           <StepCategory
             categories={categories}
             selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
+            setSelectedCategory={handleUpdateCategory}
             applicantName={applicantName}
-            setApplicantName={setApplicantName}
+            setApplicantName={handleUpdateApplicantName}
             applicationNumber={applicationNumber}
-            setApplicationNumber={setApplicationNumber}
+            setApplicationNumber={handleUpdateApplicationNumber}
             onNext={handleProceedToUpload}
             onLoadDemo={handleLoadDemoDirectly}
           />
@@ -242,8 +374,8 @@ export default function NewAuditPage({
             documents={documents}
             setDocuments={setDocuments}
             documentTypes={documentTypes}
-            onNext={() => setCurrentStep(3)}
-            onBack={() => setCurrentStep(1)}
+            onNext={() => goToStep(3)}
+            onBack={() => goToStep(1)}
             onLoadDemo={handleLoadDemoDirectly}
           />
         )}
@@ -254,7 +386,7 @@ export default function NewAuditPage({
             documents={documents}
             setDocuments={setDocuments}
             onNext={handleRunVerification}
-            onBack={() => setCurrentStep(2)}
+            onBack={() => goToStep(2)}
           />
         )}
 
@@ -262,8 +394,8 @@ export default function NewAuditPage({
           <StepVerification
             report={report}
             audit={audit}
-            onNext={() => setCurrentStep(5)}
-            onBack={() => setCurrentStep(3)}
+            onNext={() => goToStep(5)}
+            onBack={() => goToStep(3)}
           />
         )}
 
@@ -279,4 +411,3 @@ export default function NewAuditPage({
     </div>
   );
 }
-
