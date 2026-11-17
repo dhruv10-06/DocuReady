@@ -11,11 +11,18 @@ import {
   ArrowLeft, 
   Sparkles, 
   DownloadCloud, 
+  ExternalLink,
   Loader2,
   FileCheck2,
   Info
 } from 'lucide-react';
-import { uploadDocuments, deleteDocument, getSampleDocUrl } from '../../services/api';
+import { 
+  uploadDocuments, 
+  deleteDocument, 
+  getSampleDocUrl,
+  getSampleDocDownloadUrl,
+  getSampleDocPreviewUrl
+} from '../../services/api';
 
 export default function StepUpload({
   auditId,
@@ -179,122 +186,140 @@ export default function StepUpload({
         )}
       </div>
 
-      {/* Download Synthetic Files for Manual Testing */}
+      {/* Download & Preview Synthetic Files for Manual Testing */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-2xs">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <DownloadCloud className="w-4 h-4 text-blue-600" />
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Want to test manual file upload? Download Synthetic Test Documents
+                Want to test manual file upload? Preview or Download Synthetic Test Documents
               </h4>
             </div>
             <p className="text-xs text-slate-500">
-              Download these realistic benchmark PDF, PNG, and JPG documents to test manual drag-and-drop, OCR extraction, and discrepancy detection:
+              Preview documents in a new tab or download realistic benchmark files (PDF, PNG, JPG) to test manual drag-and-drop and OCR verification:
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-4">
           {/* Aadhaar Card */}
-          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
             <div>
               <span className="text-xs font-bold text-slate-800 block">Identity Proof (Aadhaar)</span>
-              <span className="text-[11px] text-slate-500 block mb-2.5">Rahul Sharma (DOB: 12/05/2005)</span>
+              <span className="text-[11px] text-slate-500 block">Rahul Sharma (DOB: 12/05/2005)</span>
             </div>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.pdf')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>PDF</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.png')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>PNG</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Aadhaar_Rahul_Sharma.jpg')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>JPG</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              {[
+                { fmt: 'PDF', file: 'Synthetic_Aadhaar_Rahul_Sharma.pdf' },
+                { fmt: 'PNG', file: 'Synthetic_Aadhaar_Rahul_Sharma.png' },
+                { fmt: 'JPG', file: 'Synthetic_Aadhaar_Rahul_Sharma.jpg' },
+              ].map(({ fmt, file }) => (
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-150 text-[11px]">
+                  <span className="font-bold text-slate-700">{fmt}</span>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={getSampleDocPreviewUrl(file)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
+                      title={`Preview ${fmt} in new tab`}
+                    >
+                      <span>Preview</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                    <a
+                      href={getSampleDocDownloadUrl(file)}
+                      download
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1"
+                      title={`Download ${fmt}`}
+                    >
+                      <span>Download</span>
+                      <DownloadCloud className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Marksheet */}
-          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
             <div>
               <span className="text-xs font-bold text-slate-800 block">Marksheet (Class XII)</span>
-              <span className="text-[11px] text-slate-500 block mb-2.5">Rahul S. Sharma (Initial variation)</span>
+              <span className="text-[11px] text-slate-500 block">Rahul S. Sharma (Initial variation)</span>
             </div>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Class_XII_Marksheet_Rahul.pdf')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>PDF</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Class_XII_Marksheet_Rahul.png')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>PNG</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Class_XII_Marksheet_Rahul.jpg')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>JPG</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              {[
+                { fmt: 'PDF', file: 'Synthetic_Class_XII_Marksheet_Rahul.pdf' },
+                { fmt: 'PNG', file: 'Synthetic_Class_XII_Marksheet_Rahul.png' },
+                { fmt: 'JPG', file: 'Synthetic_Class_XII_Marksheet_Rahul.jpg' },
+              ].map(({ fmt, file }) => (
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-150 text-[11px]">
+                  <span className="font-bold text-slate-700">{fmt}</span>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={getSampleDocPreviewUrl(file)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
+                      title={`Preview ${fmt} in new tab`}
+                    >
+                      <span>Preview</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                    <a
+                      href={getSampleDocDownloadUrl(file)}
+                      download
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1"
+                      title={`Download ${fmt}`}
+                    >
+                      <span>Download</span>
+                      <DownloadCloud className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Income Certificate */}
-          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-3">
             <div>
               <span className="text-xs font-bold text-slate-800 block">Income Certificate</span>
-              <span className="text-[11px] text-slate-500 block mb-2.5">Rahul Sharma (DOB 2004, Expired)</span>
+              <span className="text-[11px] text-slate-500 block">Rahul Sharma (DOB 2004, Expired)</span>
             </div>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Income_Certificate_Rahul.pdf')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>PDF</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Income_Certificate_Rahul.jpg')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>JPG</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
-              <a
-                href={getSampleDocUrl('/sample-docs/Synthetic_Income_Certificate_Rahul.png')}
-                download
-                className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-600 text-center transition flex items-center justify-center gap-1"
-              >
-                <span>PNG</span>
-                <DownloadCloud className="w-3 h-3 text-slate-400" />
-              </a>
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              {[
+                { fmt: 'PDF', file: 'Synthetic_Income_Certificate_Rahul.pdf' },
+                { fmt: 'JPG', file: 'Synthetic_Income_Certificate_Rahul.jpg' },
+                { fmt: 'PNG', file: 'Synthetic_Income_Certificate_Rahul.png' },
+              ].map(({ fmt, file }) => (
+                <div key={fmt} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50 border border-slate-150 text-[11px]">
+                  <span className="font-bold text-slate-700">{fmt}</span>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={getSampleDocPreviewUrl(file)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
+                      title={`Preview ${fmt} in new tab`}
+                    >
+                      <span>Preview</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                    <a
+                      href={getSampleDocDownloadUrl(file)}
+                      download
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1"
+                      title={`Download ${fmt}`}
+                    >
+                      <span>Download</span>
+                      <DownloadCloud className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

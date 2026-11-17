@@ -186,6 +186,8 @@ router.get('/sample-docs', (req, res) => {
         mimeType,
         docCategory,
         url: `/sample-docs/${filename}`,
+        previewUrl: `/sample-docs/preview/${filename}`,
+        downloadUrl: `/sample-docs/download/${filename}`,
       };
     });
   }
@@ -194,6 +196,44 @@ router.get('/sample-docs', (req, res) => {
     description: 'Pre-configured documents demonstrating name variation (Rahul S. Sharma vs Rahul Sharma), DOB mismatch (2004 vs 2005), and missing Application Form.',
     files,
   });
+});
+
+/**
+ * GET /api/sample-docs/download/:filename
+ * Explicit attachment download route for cross-domain downloads
+ */
+router.get('/sample-docs/download/:filename', (req, res) => {
+  const { filename } = req.params;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(__dirname, '..', 'public', 'sample-docs', safeFilename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Sample document not found' });
+  }
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  return res.download(filePath, safeFilename);
+});
+
+/**
+ * GET /api/sample-docs/preview/:filename
+ * Explicit inline preview route to open in new tab
+ */
+router.get('/sample-docs/preview/:filename', (req, res) => {
+  const { filename } = req.params;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(__dirname, '..', 'public', 'sample-docs', safeFilename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Sample document not found' });
+  }
+  const ext = path.extname(safeFilename).toLowerCase();
+  let contentType = 'application/octet-stream';
+  if (ext === '.pdf') contentType = 'application/pdf';
+  else if (ext === '.png') contentType = 'image/png';
+  else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+  return fs.createReadStream(filePath).pipe(res);
 });
 
 /**

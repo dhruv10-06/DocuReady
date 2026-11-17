@@ -49,6 +49,38 @@ ensureSampleFiles();
 // Startup cleanup: Purge any orphaned upload directories left from previous process crashes
 cleanupOrphanUploads();
 
+// Dedicated sample document download endpoint: sets Content-Disposition: attachment for reliable cross-origin downloads
+app.get('/sample-docs/download/:filename', (req, res) => {
+  const { filename } = req.params;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(__dirname, 'public', 'sample-docs', safeFilename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Sample document not found' });
+  }
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  return res.download(filePath, safeFilename);
+});
+
+// Dedicated sample document preview endpoint: sets Content-Disposition: inline to open in a new tab
+app.get('/sample-docs/preview/:filename', (req, res) => {
+  const { filename } = req.params;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(__dirname, 'public', 'sample-docs', safeFilename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Sample document not found' });
+  }
+  const ext = path.extname(safeFilename).toLowerCase();
+  let contentType = 'application/octet-stream';
+  if (ext === '.pdf') contentType = 'application/pdf';
+  else if (ext === '.png') contentType = 'image/png';
+  else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+  return fs.createReadStream(filePath).pipe(res);
+});
+
 // Serve static demo sample files
 app.use('/sample-docs', express.static(path.join(__dirname, 'public', 'sample-docs')));
 

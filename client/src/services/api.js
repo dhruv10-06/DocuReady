@@ -18,6 +18,24 @@ export function getSampleDocUrl(relativePath) {
   const clean = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
   return BACKEND_BASE ? `${BACKEND_BASE}${clean}` : clean;
 }
+
+/**
+ * Resolve explicit attachment download URL for cross-domain download without page navigation
+ */
+export function getSampleDocDownloadUrl(filename) {
+  const clean = filename.startsWith('/') ? filename.slice(1) : filename;
+  const fileOnly = clean.replace(/^(?:api\/)?sample-docs\/(?:download\/|preview\/)?/, '');
+  return getSampleDocUrl(`/sample-docs/download/${fileOnly}`);
+}
+
+/**
+ * Resolve inline preview URL to view in a separate tab without disturbing audit wizard
+ */
+export function getSampleDocPreviewUrl(filename) {
+  const clean = filename.startsWith('/') ? filename.slice(1) : filename;
+  const fileOnly = clean.replace(/^(?:api\/)?sample-docs\/(?:download\/|preview\/)?/, '');
+  return getSampleDocUrl(`/sample-docs/preview/${fileOnly}`);
+}
 const STORAGE_KEY = 'docuready_owned_audits';
 const ACTIVE_AUDIT_KEY = 'docuready_active_audit_id';
 const STEP_KEY_PREFIX = 'docuready_audit_step_';

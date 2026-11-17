@@ -4,11 +4,72 @@ const fs = require('fs');
 const path = require('path');
 
 let createCanvas = null;
+let GlobalFonts = null;
 try {
   const canvasPkg = require('@napi-rs/canvas');
   createCanvas = canvasPkg.createCanvas;
+  GlobalFonts = canvasPkg.GlobalFonts;
 } catch (e) {
   // Graceful fallback if @napi-rs/canvas is unavailable
+}
+
+// Open-source bundled fonts (Liberation Sans) to guarantee reliable text rendering
+// across minimal Linux containers (Railway, Docker) that lack system fonts.
+const FONT_DIR = path.join(__dirname, '..', 'fonts');
+const FONT_REGULAR_PATH = path.join(FONT_DIR, 'LiberationSans-Regular.ttf');
+const FONT_BOLD_PATH = path.join(FONT_DIR, 'LiberationSans-Bold.ttf');
+
+function initCanvasFonts() {
+  if (!GlobalFonts) return;
+  if (fs.existsSync(FONT_REGULAR_PATH)) {
+    try {
+      GlobalFonts.registerFromPath(FONT_REGULAR_PATH, 'LiberationSans');
+      GlobalFonts.registerFromPath(FONT_REGULAR_PATH, 'DocuFont');
+      try { GlobalFonts.setAlias('LiberationSans', 'sans-serif'); } catch (e) {}
+      try { GlobalFonts.setAlias('LiberationSans', 'Arial'); } catch (e) {}
+    } catch (e) {
+      console.warn('Could not register regular font:', e.message);
+    }
+  }
+
+  if (fs.existsSync(FONT_BOLD_PATH)) {
+    try {
+      GlobalFonts.registerFromPath(FONT_BOLD_PATH, 'LiberationSansBold');
+      GlobalFonts.registerFromPath(FONT_BOLD_PATH, 'DocuFontBold');
+    } catch (e) {
+      console.warn('Could not register bold font:', e.message);
+    }
+  }
+}
+
+initCanvasFonts();
+
+const FONT_FAMILY = 'LiberationSans, Arial, sans-serif';
+const FONT_FAMILY_BOLD = 'LiberationSansBold, LiberationSans, Arial, sans-serif';
+
+/**
+ * Self-verification guard: checks if Canvas actually renders visible text glyphs
+ */
+function verifyCanvasTextRendering() {
+  if (!createCanvas) return false;
+  try {
+    const testCanvas = createCanvas(120, 30);
+    const ctx = testCanvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 120, 30);
+    ctx.fillStyle = '#000000';
+    ctx.font = `16px ${FONT_FAMILY}`;
+    ctx.fillText('DocuReadyText', 5, 20);
+    const data = ctx.getImageData(0, 0, 120, 30).data;
+    let blackCount = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] < 128) blackCount++;
+    }
+    return blackCount >= 50;
+  } catch (e) {
+    console.error('Canvas text verification failed:', e);
+    return false;
+  }
 }
 
 /**
@@ -126,7 +187,7 @@ function drawPortraitSilhouette(ctx, x, y, w, h) {
   ctx.fillStyle = '#1e3a8a';
   ctx.fillRect(x, y + h - 24, w, 24);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 12px sans-serif';
+  ctx.font = `bold 12px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('APPLICANT PHOTO', x + w / 2, y + h - 8);
   ctx.textAlign = 'left';
@@ -149,11 +210,11 @@ function drawOfficialSeal(ctx, centerX, centerY, radius, orgTitle, locTitle) {
   ctx.stroke();
 
   ctx.fillStyle = '#1e3a8a';
-  ctx.font = 'bold 12px sans-serif';
+  ctx.font = `bold 12px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('OFFICIAL', centerX, centerY - 6);
   ctx.fillText('SEAL', centerX, centerY + 10);
-  ctx.font = '10px sans-serif';
+  ctx.font = `10px ${FONT_FAMILY}`;
   ctx.fillText(orgTitle, centerX, centerY - radius + 20);
   ctx.fillText(locTitle, centerX, centerY + radius - 14);
   ctx.restore();
@@ -191,13 +252,13 @@ function generateAadhaarImage(format = 'png') {
 
   // Header titles
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 26px sans-serif';
+  ctx.font = `bold 26px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('GOVERNMENT OF INDIA', width / 2, 78);
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = `bold 20px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#1e3a8a';
   ctx.fillText('UNIQUE IDENTIFICATION AUTHORITY OF INDIA', width / 2, 108);
-  ctx.font = 'italic 16px sans-serif';
+  ctx.font = `italic 16px ${FONT_FAMILY}`;
   ctx.fillStyle = '#047857';
   ctx.fillText('AADHAAR - MERA AADHAAR, MERI PEHCHAN', width / 2, 134);
   ctx.textAlign = 'left';
@@ -216,7 +277,7 @@ function generateAadhaarImage(format = 'png') {
   // QR Code box
   drawQrPattern(ctx, width - 230, 175, 180);
   ctx.fillStyle = '#475569';
-  ctx.font = '12px sans-serif';
+  ctx.font = `12px ${FONT_FAMILY}`;
   ctx.textAlign = 'center';
   ctx.fillText('SECURE DIGITAL QR', width - 140, 375);
   ctx.textAlign = 'left';
@@ -226,32 +287,32 @@ function generateAadhaarImage(format = 'png') {
   let curY = 200;
   const lineGap = 36;
 
-  ctx.font = 'bold 24px sans-serif';
+  ctx.font = `bold 24px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Candidate Name: Rahul Sharma', startX, curY);
 
   curY += lineGap;
-  ctx.font = '20px sans-serif';
+  ctx.font = `20px ${FONT_FAMILY}`;
   ctx.fillStyle = '#1e293b';
   ctx.fillText("Father's Name: Suresh Sharma", startX, curY);
 
   curY += lineGap;
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = `bold 22px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Date of Birth: 12/05/2005', startX, curY);
 
   curY += lineGap;
-  ctx.font = '20px sans-serif';
+  ctx.font = `20px ${FONT_FAMILY}`;
   ctx.fillStyle = '#1e293b';
   ctx.fillText('Gender: MALE', startX, curY);
 
   curY += lineGap;
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = `bold 22px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Aadhaar No: 9876-5432-9912', startX, curY);
 
   curY += lineGap;
-  ctx.font = '18px sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.fillStyle = '#334155';
   ctx.fillText('Address: H.No 42, Green Park Extension, New Delhi - 110016', startX, curY);
 
@@ -273,18 +334,18 @@ function generateAadhaarImage(format = 'png') {
   ctx.strokeRect(45, 460, width - 90, 110);
 
   ctx.fillStyle = '#475569';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = `bold 15px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('YOUR AADHAAR NUMBER / आधार क्रमांक', width / 2, 488);
 
   ctx.fillStyle = '#b91c1c';
-  ctx.font = 'bold 40px sans-serif';
+  ctx.font = `bold 40px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('9876-5432-9912', width / 2, 538);
   ctx.textAlign = 'left';
 
   // Status and details
   ctx.fillStyle = '#047857';
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = `bold 16px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('Status: ACTIVE / VERIFIED   |   VID: 9102-4821-3301-8821   |   Toll Free: 1947', width / 2, 605);
 
@@ -292,7 +353,7 @@ function generateAadhaarImage(format = 'png') {
   ctx.fillStyle = '#1e3a8a';
   ctx.fillRect(25, 665, width - 50, 48);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = `bold 16px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('[SYNTHETIC DEMO DOCUMENT FOR EVALUATION PURPOSES ONLY]', width / 2, 695);
 
   const mime = (format === 'jpeg' || format === 'jpg') ? 'image/jpeg' : 'image/png';
@@ -322,10 +383,10 @@ function generateMarksheetImage(format = 'png') {
 
   // Board Header
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 26px sans-serif';
+  ctx.font = `bold 26px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('CENTRAL BOARD OF SECONDARY EDUCATION, DELHI', width / 2, 80);
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = `bold 20px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#1e3a8a';
   ctx.fillText('SENIOR SCHOOL CERTIFICATE EXAMINATION 2023', width / 2, 115);
 
@@ -333,7 +394,7 @@ function generateMarksheetImage(format = 'png') {
   ctx.fillStyle = '#0284c7';
   ctx.fillRect(width / 2 - 220, 135, 440, 36);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = `bold 16px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('MARKS STATEMENT & PASS CERTIFICATE', width / 2, 159);
   ctx.textAlign = 'left';
 
@@ -343,20 +404,20 @@ function generateMarksheetImage(format = 'png') {
   ctx.strokeStyle = '#cbd5e1';
   ctx.strokeRect(50, 195, width - 100, 240);
 
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = `bold 20px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Candidate Name: Rahul S. Sharma', 75, 235);
   ctx.fillText('Roll Number: CBSE-2023-884120', 530, 235);
 
-  ctx.font = '18px sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.fillStyle = '#334155';
   ctx.fillText("Father's Name: Suresh Sharma", 75, 280);
   ctx.fillText("Mother's Name: Sunita Sharma", 530, 280);
 
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = `bold 18px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Date of Birth: 12/05/2005', 75, 325);
-  ctx.font = '18px sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.fillStyle = '#334155';
   ctx.fillText('School: Delhi Public School, R.K. Puram, New Delhi', 75, 370);
   ctx.fillText('Date of Issue: 22/05/2023', 75, 415);
@@ -373,7 +434,7 @@ function generateMarksheetImage(format = 'png') {
   ctx.fillStyle = '#1e3a8a';
   ctx.fillRect(50, tableY, width - 100, 45);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = `bold 15px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('SUB CODE', colX[0] + 15, tableY + 28);
   ctx.fillText('SUBJECT NAME', colX[1] + 15, tableY + 28);
   ctx.fillText('THEORY', colX[2] + 15, tableY + 28);
@@ -391,7 +452,7 @@ function generateMarksheetImage(format = 'png') {
   ];
 
   let rY = tableY + 45;
-  ctx.font = '16px sans-serif';
+  ctx.font = `16px ${FONT_FAMILY}`;
   for (let i = 0; i < subjects.length; i++) {
     const s = subjects[i];
     ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f8fafc';
@@ -405,11 +466,11 @@ function generateMarksheetImage(format = 'png') {
     ctx.fillText(s.name, colX[1] + 15, rY + 30);
     ctx.fillText(s.th, colX[2] + 25, rY + 30);
     ctx.fillText(s.pr, colX[3] + 25, rY + 30);
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = `bold 16px ${FONT_FAMILY_BOLD}`;
     ctx.fillText(s.tot, colX[4] + 25, rY + 30);
     ctx.fillStyle = '#0284c7';
     ctx.fillText(s.gr, colX[5] + 25, rY + 30);
-    ctx.font = '16px sans-serif';
+    ctx.font = `16px ${FONT_FAMILY}`;
 
     rY += 48;
   }
@@ -421,21 +482,21 @@ function generateMarksheetImage(format = 'png') {
   ctx.strokeRect(50, rY + 15, width - 100, 110);
 
   ctx.fillStyle = '#166534';
-  ctx.font = 'bold 24px sans-serif';
+  ctx.font = `bold 24px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('Result: PASS', 80, rY + 60);
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = `bold 22px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('Overall Percentage: 88.4%', 350, rY + 60);
-  ctx.font = '18px sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.fillText('Total Marks: 465 / 500  (Distinction in 4 subjects)', 80, rY + 100);
 
   // Seals and signatures
   drawOfficialSeal(ctx, 200, rY + 220, 55, 'CBSE DELHI', 'EXAM DEPT');
 
   ctx.fillStyle = '#334155';
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = `bold 16px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('Dr. Sanyam Bhardwaj', width - 200, rY + 210);
-  ctx.font = '14px sans-serif';
+  ctx.font = `14px ${FONT_FAMILY}`;
   ctx.fillText('Controller of Examinations', width - 200, rY + 235);
   ctx.strokeStyle = '#475569';
   ctx.lineWidth = 1;
@@ -448,7 +509,7 @@ function generateMarksheetImage(format = 'png') {
   ctx.fillStyle = '#1e3a8a';
   ctx.fillRect(28, height - 70, width - 56, 42);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = `bold 15px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('[SYNTHETIC DEMO DOCUMENT FOR EVALUATION PURPOSES ONLY]', width / 2, height - 44);
 
   const mime = (format === 'jpeg' || format === 'jpg') ? 'image/jpeg' : 'image/png';
@@ -478,17 +539,17 @@ function generateIncomeImage(format = 'jpeg') {
 
   // Header
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 24px sans-serif';
+  ctx.font = `bold 24px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('REVENUE DEPARTMENT, GOVT. OF NCT OF DELHI', width / 2, 75);
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = `bold 20px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#1e3a8a';
   ctx.fillText('OFFICE OF THE TAHSILDAR / REVENUE OFFICER', width / 2, 108);
 
   ctx.fillStyle = '#7c2d12';
   ctx.fillRect(width / 2 - 250, 130, 500, 40);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = `bold 18px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('ANNUAL FAMILY INCOME CERTIFICATE', width / 2, 156);
   ctx.textAlign = 'left';
 
@@ -498,14 +559,14 @@ function generateIncomeImage(format = 'jpeg') {
   ctx.strokeStyle = '#cbd5e1';
   ctx.strokeRect(50, 190, width - 100, 75);
 
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = `bold 18px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Certificate No: REV/INC/2023/4491', 75, 235);
   ctx.fillText('Date of Issue: 14/08/2023', 440, 235);
   ctx.fillText('Valid Till: 13/08/2024', 720, 235);
 
   // Legal Statement
-  ctx.font = '17px sans-serif';
+  ctx.font = `17px ${FONT_FAMILY}`;
   ctx.fillStyle = '#334155';
   ctx.fillText('This is to certify that based on the inquiry report of the Area Revenue Inspector and', 70, 310);
   ctx.fillText('local verification, the annual income of the family detailed below is verified as true:', 70, 340);
@@ -519,37 +580,37 @@ function generateIncomeImage(format = 'jpeg') {
   let curY = 425;
   const lineGap = 48;
 
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = `bold 22px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Candidate Name: Rahul Sharma', 80, curY);
 
   curY += lineGap;
-  ctx.font = '20px sans-serif';
+  ctx.font = `20px ${FONT_FAMILY}`;
   ctx.fillStyle = '#1e293b';
   ctx.fillText("Father's Name: Suresh Sharma", 80, curY);
 
   curY += lineGap;
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = `bold 22px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Date of Birth: 12/05/2004', 80, curY);
 
   curY += lineGap;
-  ctx.font = '18px sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.fillStyle = '#334155';
   ctx.fillText('Residential Address: H.No 42, Green Park Extension, New Delhi - 110016', 80, curY);
 
   curY += lineGap;
-  ctx.font = 'bold 24px sans-serif';
+  ctx.font = `bold 24px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#1e40af';
   ctx.fillText('Total Annual Family Income: INR 1,80,000/-', 80, curY);
 
   curY += 36;
-  ctx.font = 'italic 16px sans-serif';
+  ctx.font = `italic 16px ${FONT_FAMILY}`;
   ctx.fillStyle = '#475569';
   ctx.fillText('(Rupees One Lakh Eighty Thousand Only)', 80, curY);
 
   curY += 46;
-  ctx.font = '18px sans-serif';
+  ctx.font = `18px ${FONT_FAMILY}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Purpose: Higher Education Financial Scholarship', 80, curY);
 
@@ -559,7 +620,7 @@ function generateIncomeImage(format = 'jpeg') {
   ctx.strokeStyle = '#cbd5e1';
   ctx.strokeRect(50, 785, width - 100, 100);
 
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = `bold 18px ${FONT_FAMILY_BOLD}`;
   ctx.fillStyle = '#0f172a';
   ctx.fillText('Issuing Authority: Office of the Tahsildar, District South, New Delhi', 75, 842);
 
@@ -567,10 +628,10 @@ function generateIncomeImage(format = 'jpeg') {
   drawOfficialSeal(ctx, 220, 1020, 60, 'REVENUE DEPT', 'DIST SOUTH');
 
   ctx.fillStyle = '#1e293b';
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = `bold 18px ${FONT_FAMILY_BOLD}`;
   ctx.textAlign = 'center';
   ctx.fillText('S.K. Mishra (Executive Magistrate)', width - 250, 1000);
-  ctx.font = '16px sans-serif';
+  ctx.font = `16px ${FONT_FAMILY}`;
   ctx.fillText('Office of the Tahsildar, District South', width - 250, 1030);
   ctx.font = '13px monospace';
   ctx.fillStyle = '#64748b';
@@ -585,60 +646,8 @@ function generateIncomeImage(format = 'jpeg') {
   ctx.fillStyle = '#1e3a8a';
   ctx.fillRect(28, height - 70, width - 56, 42);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = `bold 15px ${FONT_FAMILY_BOLD}`;
   ctx.fillText('[SYNTHETIC DEMO DOCUMENT FOR EVALUATION PURPOSES ONLY]', width / 2, height - 44);
-
-  const mime = (format === 'jpeg' || format === 'jpg') ? 'image/jpeg' : 'image/png';
-  return canvas.toBuffer(mime);
-}
-
-/**
- * Legacy line-based image generator fallback
- */
-function createImageFromLines(lines, format = 'png') {
-  if (!createCanvas) return null;
-  const width = 1000;
-  const height = Math.max(700, lines.length * 42 + 120);
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = '#2563eb';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(20, 20, width - 40, height - 40);
-
-  ctx.strokeStyle = '#94a3b8';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(28, 28, width - 56, height - 56);
-
-  let y = 80;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (i < 3) {
-      ctx.font = 'bold 26px sans-serif';
-      ctx.fillStyle = '#1e3a8a';
-    } else if (
-      line.startsWith('Candidate Name') ||
-      line.startsWith('Date of Birth') ||
-      line.startsWith('Roll Number') ||
-      line.startsWith('Certificate No') ||
-      line.startsWith('Aadhaar Number')
-    ) {
-      ctx.font = 'bold 22px sans-serif';
-      ctx.fillStyle = '#0f172a';
-    } else if (line.startsWith('---') || line.startsWith('[')) {
-      ctx.font = '16px monospace';
-      ctx.fillStyle = '#64748b';
-    } else {
-      ctx.font = '20px sans-serif';
-      ctx.fillStyle = '#1e293b';
-    }
-
-    ctx.fillText(line, 60, y);
-    y += 38;
-  }
 
   const mime = (format === 'jpeg' || format === 'jpg') ? 'image/jpeg' : 'image/png';
   return canvas.toBuffer(mime);
@@ -672,16 +681,6 @@ function ensureSampleFiles() {
   ];
   fs.writeFileSync(path.join(sampleDir, 'Synthetic_Aadhaar_Rahul_Sharma.pdf'), createPdfFromLines(aadhaarLines));
 
-  // High-fidelity PNG and JPG versions
-  const aadhaarPng = generateAadhaarImage('png');
-  if (aadhaarPng) {
-    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Aadhaar_Rahul_Sharma.png'), aadhaarPng);
-  }
-  const aadhaarJpg = generateAadhaarImage('jpeg');
-  if (aadhaarJpg) {
-    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Aadhaar_Rahul_Sharma.jpg'), aadhaarJpg);
-  }
-
   // 2. Marksheet (Class XII) - Preserved PDF Lines
   const marksheetLines = [
     'CENTRAL BOARD OF SECONDARY EDUCATION, DELHI',
@@ -701,16 +700,6 @@ function ensureSampleFiles() {
     '[SYNTHETIC DEMO DOCUMENT FOR EVALUATION PURPOSES ONLY]',
   ];
   fs.writeFileSync(path.join(sampleDir, 'Synthetic_Class_XII_Marksheet_Rahul.pdf'), createPdfFromLines(marksheetLines));
-
-  // High-fidelity PNG and JPG versions for Marksheet (previously missing!)
-  const marksheetPng = generateMarksheetImage('png');
-  if (marksheetPng) {
-    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Class_XII_Marksheet_Rahul.png'), marksheetPng);
-  }
-  const marksheetJpg = generateMarksheetImage('jpeg');
-  if (marksheetJpg) {
-    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Class_XII_Marksheet_Rahul.jpg'), marksheetJpg);
-  }
 
   // 3. Income Certificate (With intentional DOB discrepancy & older issue date) - Preserved PDF Lines
   const incomeLines = [
@@ -734,7 +723,34 @@ function ensureSampleFiles() {
   ];
   fs.writeFileSync(path.join(sampleDir, 'Synthetic_Income_Certificate_Rahul.pdf'), createPdfFromLines(incomeLines));
 
-  // High-fidelity JPG and PNG versions
+  // Verify that canvas text glyphs render properly before overwriting image files on disk
+  const canRenderText = verifyCanvasTextRendering();
+  if (!canRenderText) {
+    console.warn('[DocuReady Warning] Canvas text rendering is unavailable. Preserving existing verified sample images on disk.');
+    return;
+  }
+
+  // High-fidelity PNG and JPG versions for Aadhaar
+  const aadhaarPng = generateAadhaarImage('png');
+  if (aadhaarPng) {
+    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Aadhaar_Rahul_Sharma.png'), aadhaarPng);
+  }
+  const aadhaarJpg = generateAadhaarImage('jpeg');
+  if (aadhaarJpg) {
+    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Aadhaar_Rahul_Sharma.jpg'), aadhaarJpg);
+  }
+
+  // High-fidelity PNG and JPG versions for Marksheet
+  const marksheetPng = generateMarksheetImage('png');
+  if (marksheetPng) {
+    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Class_XII_Marksheet_Rahul.png'), marksheetPng);
+  }
+  const marksheetJpg = generateMarksheetImage('jpeg');
+  if (marksheetJpg) {
+    fs.writeFileSync(path.join(sampleDir, 'Synthetic_Class_XII_Marksheet_Rahul.jpg'), marksheetJpg);
+  }
+
+  // High-fidelity JPG and PNG versions for Income Certificate
   const incomeJpg = generateIncomeImage('jpeg');
   if (incomeJpg) {
     fs.writeFileSync(path.join(sampleDir, 'Synthetic_Income_Certificate_Rahul.jpg'), incomeJpg);
@@ -749,9 +765,9 @@ function ensureSampleFiles() {
 
 module.exports = {
   createPdfFromLines,
-  createImageFromLines,
   generateAadhaarImage,
   generateMarksheetImage,
   generateIncomeImage,
   ensureSampleFiles,
+  verifyCanvasTextRendering,
 };

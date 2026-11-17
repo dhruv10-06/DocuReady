@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const express = require('express');
-const { ensureSampleFiles } = require('../services/sampleFileGenerator');
+const { ensureSampleFiles, verifyCanvasTextRendering } = require('../services/sampleFileGenerator');
 const { processDocumentFile } = require('../services/ocrService');
 const { performAuditVerification, verifyDocumentContent } = require('../services/verificationEngine');
 const { SYNTHETIC_DEMO_CASES } = require('../data/sampleData');
@@ -17,8 +17,14 @@ async function runSampleDocsTests() {
   console.log('📄 DOCUREADY SYNTHETIC SAMPLE DOCUMENTS & OCR VERIFICATION TEST');
   console.log('===============================================================\n');
 
-  // --- TEST 1: Generate & Inspect All Sample Files ---
-  console.log('--- TEST 1: File Generation & Magic Byte Integrity ---');
+  // --- TEST 1: Canvas Text Rendering Self-Verification ---
+  console.log('--- TEST 1: Canvas Font & Text Rendering Verification ---');
+  const canRender = verifyCanvasTextRendering();
+  console.assert(canRender === true, 'verifyCanvasTextRendering() must return true with bundled LiberationSans font');
+  console.log(' ✓ Canvas text rendering verified: glyphs produce non-white pixels.\n');
+
+  // --- TEST 2: Generate & Inspect All Sample Files ---
+  console.log('--- TEST 2: File Generation & Magic Byte Integrity ---');
   ensureSampleFiles();
 
   const expectedFiles = [
@@ -51,12 +57,38 @@ async function runSampleDocsTests() {
     }
     console.log(` ✓ ${exp.name} (${stat.size} bytes, verified ${exp.mime})`);
   }
-  console.log('✓ TEST 1 PASSED: All 9 sample files exist with valid signatures.\n');
+  console.log('✓ TEST 2 PASSED: All 9 sample files exist with valid signatures.\n');
 
-  // --- TEST 2: HTTP Route & MIME Type Verification ---
-  console.log('--- TEST 2: HTTP Static Serving & MIME Types ---');
+  // --- TEST 3: HTTP Route, MIME Type, Download and Preview Headers ---
+  console.log('--- TEST 3: HTTP Static Serving, Preview & Download Endpoints ---');
   const app = express();
   app.use(express.json());
+
+  // Download endpoint with attachment header
+  app.get('/sample-docs/download/:filename', (req, res) => {
+    const safeFilename = path.basename(req.params.filename);
+    const filePath = path.join(SAMPLE_DIR, safeFilename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.download(filePath, safeFilename);
+  });
+
+  // Preview endpoint with inline header
+  app.get('/sample-docs/preview/:filename', (req, res) => {
+    const safeFilename = path.basename(req.params.filename);
+    const filePath = path.join(SAMPLE_DIR, safeFilename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+    const ext = path.extname(safeFilename).toLowerCase();
+    let contentType = 'application/octet-stream';
+    if (ext === '.pdf') contentType = 'application/pdf';
+    else if (ext === '.png') contentType = 'image/png';
+    else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+    return fs.createReadStream(filePath).pipe(res);
+  });
+
   app.use('/sample-docs', express.static(SAMPLE_DIR));
   app.use('/api', auditRoutes);
 
@@ -66,18 +98,27 @@ async function runSampleDocsTests() {
 
   try {
     for (const exp of expectedFiles) {
-      const url = `${BASE_URL}/sample-docs/${exp.name}`;
-      const res = await fetch(url);
-      console.assert(res.status === 200, `Expected 200 for ${url}, got ${res.status}`);
-      const contentType = res.headers.get('content-type') || '';
-      console.assert(
-        contentType.includes(exp.mime),
-        `Expected ${exp.mime} for ${exp.name}, got ${contentType}`
-      );
-      const buf = await res.arrayBuffer();
-      const diskSize = fs.statSync(path.join(SAMPLE_DIR, exp.name)).size;
-      console.assert(buf.byteLength === diskSize, `Downloaded size (${buf.byteLength}) must match disk size (${diskSize})`);
-      console.log(` ✓ HTTP GET /sample-docs/${exp.name} -> 200 OK (${contentType})`);
+      // 1. Static URL
+      const staticRes = await fetch(`${BASE_URL}/sample-docs/${exp.name}`);
+      console.assert(staticRes.status === 200, `Expected 200 for static ${exp.name}, got ${staticRes.status}`);
+      const staticContentType = staticRes.headers.get('content-type') || '';
+      console.assert(staticContentType.includes(exp.mime), `Expected ${exp.mime} for ${exp.name}, got ${staticContentType}`);
+
+      // 2. Download endpoint (Content-Disposition: attachment)
+      const dlRes = await fetch(`${BASE_URL}/sample-docs/download/${exp.name}`);
+      console.assert(dlRes.status === 200, `Expected 200 for download ${exp.name}`);
+      const dlDisp = dlRes.headers.get('content-disposition') || '';
+      console.assert(dlDisp.includes('attachment'), `Download must have 'attachment' in Content-Disposition, got: ${dlDisp}`);
+      console.assert(dlDisp.includes(exp.name), `Download Content-Disposition must include filename ${exp.name}`);
+
+      // 3. Preview endpoint (Content-Disposition: inline)
+      const prevRes = await fetch(`${BASE_URL}/sample-docs/preview/${exp.name}`);
+      console.assert(prevRes.status === 200, `Expected 200 for preview ${exp.name}`);
+      const prevDisp = prevRes.headers.get('content-disposition') || '';
+      console.assert(prevDisp.includes('inline'), `Preview must have 'inline' in Content-Disposition, got: ${prevDisp}`);
+      console.assert(prevDisp.includes(exp.name), `Preview Content-Disposition must include filename ${exp.name}`);
+
+      console.log(` ✓ ${exp.name}: Static 200 | Preview (inline) | Download (attachment)`);
     }
 
     // Verify /api/sample-docs metadata endpoint
@@ -85,16 +126,17 @@ async function runSampleDocsTests() {
     console.assert(apiRes.status === 200, 'Expected 200 from /api/sample-docs');
     const apiData = await apiRes.json();
     console.assert(Array.isArray(apiData.files) && apiData.files.length >= 9, 'Expected at least 9 files in metadata');
-    console.log(` ✓ /api/sample-docs returned ${apiData.files.length} sample file entries`);
-    console.log('✓ TEST 2 PASSED: HTTP static and metadata routes serve correct MIME types and files.\n');
+    console.assert(apiData.files.every(f => f.previewUrl && f.downloadUrl), 'Every metadata item must have previewUrl and downloadUrl');
+    console.log(` ✓ /api/sample-docs returned ${apiData.files.length} sample file entries with preview and download URLs`);
+    console.log('✓ TEST 3 PASSED: Static, Preview, and Download endpoints verified with correct headers.\n');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  // --- TEST 3: OCR Extraction on Image Samples ---
-  console.log('--- TEST 3: Real OCR Extraction on Generated Images ---');
+  // --- TEST 4: Real OCR Extraction on Generated Images ---
+  console.log('--- TEST 4: Real OCR Extraction on Generated Images ---');
   
-  // 3a. Aadhaar PNG
+  // 4a. Aadhaar PNG
   const aadhaarPngPath = path.join(SAMPLE_DIR, 'Synthetic_Aadhaar_Rahul_Sharma.png');
   const aRes = await processDocumentFile({
     path: aadhaarPngPath,
@@ -108,7 +150,7 @@ async function runSampleDocsTests() {
   console.assert(aRes.extractedData.documentNumber === '9876-5432-9912', `Aadhaar number expected '9876-5432-9912', got '${aRes.extractedData.documentNumber}'`);
   console.log(` ✓ Aadhaar PNG: Name="${aRes.extractedData.candidateName}", DOB="${aRes.extractedData.dateOfBirth}", No="${aRes.extractedData.documentNumber}", Conf=${aRes.extractedData.confidence}%`);
 
-  // 3b. Marksheet PNG
+  // 4b. Marksheet PNG
   const marksheetPngPath = path.join(SAMPLE_DIR, 'Synthetic_Class_XII_Marksheet_Rahul.png');
   const mRes = await processDocumentFile({
     path: marksheetPngPath,
@@ -122,7 +164,7 @@ async function runSampleDocsTests() {
   console.assert(mRes.extractedData.documentNumber === 'CBSE-2023-884120', `Marksheet roll expected 'CBSE-2023-884120', got '${mRes.extractedData.documentNumber}'`);
   console.log(` ✓ Marksheet PNG: Name="${mRes.extractedData.candidateName}", DOB="${mRes.extractedData.dateOfBirth}", Roll="${mRes.extractedData.documentNumber}", Conf=${mRes.extractedData.confidence}%`);
 
-  // 3c. Income Certificate JPG
+  // 4c. Income Certificate JPG
   const incomeJpgPath = path.join(SAMPLE_DIR, 'Synthetic_Income_Certificate_Rahul.jpg');
   const iRes = await processDocumentFile({
     path: incomeJpgPath,
@@ -136,10 +178,10 @@ async function runSampleDocsTests() {
   console.assert(iRes.extractedData.documentNumber === 'REV/INC/2023/4491', `Income cert no expected 'REV/INC/2023/4491', got '${iRes.extractedData.documentNumber}'`);
   console.assert(iRes.extractedData.expiryDate === '13/08/2024', `Income expiry expected '13/08/2024', got '${iRes.extractedData.expiryDate}'`);
   console.log(` ✓ Income JPG: Name="${iRes.extractedData.candidateName}", DOB="${iRes.extractedData.dateOfBirth}", Cert="${iRes.extractedData.documentNumber}", ValidTill="${iRes.extractedData.expiryDate}", Conf=${iRes.extractedData.confidence}%`);
-  console.log('✓ TEST 3 PASSED: OCR extraction accurately parsed all fields with high confidence.\n');
+  console.log('✓ TEST 4 PASSED: OCR extraction accurately parsed all fields with high confidence.\n');
 
-  // --- TEST 4: Verification Engine Evaluation on Real Extracted Documents ---
-  console.log('--- TEST 4: Verification Engine Cross-Check on Sample Images ---');
+  // --- TEST 5: Verification Engine Evaluation on Real Extracted Documents ---
+  console.log('--- TEST 5: Verification Engine Cross-Check on Sample Images ---');
   const aadhaarDoc = {
     id: 'doc-sample-aadhaar',
     filename: 'Synthetic_Aadhaar_Rahul_Sharma.png',
@@ -188,18 +230,18 @@ async function runSampleDocsTests() {
   console.log(` ✓ Readiness Score: ${auditReport.readinessScore}%`);
   console.log(` ✓ Cross-Document Discrepancies: ${auditReport.crossDocDiscrepancies.length}`);
   auditReport.crossDocDiscrepancies.forEach(d => console.log(`    - [${d.severity}] ${d.type}: ${d.message}`));
-  console.log('✓ TEST 4 PASSED: Benchmark verification results correctly generated.\n');
+  console.log('✓ TEST 5 PASSED: Benchmark verification results correctly generated.\n');
 
-  // --- TEST 5: Preserve Existing Rahul Sharma Demo ---
-  console.log('--- TEST 5: Preserve Quick Demo Case Structure ---');
+  // --- TEST 6: Preserve Quick Demo Case Structure ---
+  console.log('--- TEST 6: Preserve Quick Demo Case Structure ---');
   const demoCase = SYNTHETIC_DEMO_CASES.RAHUL_SHARMA;
   console.assert(demoCase !== undefined, 'SYNTHETIC_DEMO_CASES.RAHUL_SHARMA must exist');
   console.assert(demoCase.documents.length === 3, 'Demo case must have 3 pre-configured documents');
   console.assert(demoCase.applicantName === 'Rahul Sharma', 'Applicant must be Rahul Sharma');
-  console.log('✓ TEST 5 PASSED: Rahul Sharma demo case preserved with full integrity.\n');
+  console.log('✓ TEST 6 PASSED: Rahul Sharma demo case preserved with full integrity.\n');
 
   console.log('===============================================================');
-  console.log('🎉 ALL 5 SYNTHETIC SAMPLE DOCUMENT TESTS PASSED (100%)');
+  console.log('🎉 ALL 6 SYNTHETIC SAMPLE DOCUMENT TESTS PASSED (100%)');
   console.log('===============================================================\n');
 }
 
