@@ -349,21 +349,38 @@ export default function StepReport({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             {report.category?.mandatoryDocuments?.map((mDoc, idx) => {
               const isMissing = missingDocuments.some(m => m.type === mDoc.type);
+              const isUnreadable = unreadableDocuments.some(u => u.docCategory === mDoc.type);
+              const isUnverified = (report.unverifiedDocuments || []).some(u => u.type === mDoc.type);
+
+              let statusText = 'VERIFIED';
+              let badgeClasses = 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+              let cardClasses = 'bg-slate-50 border-slate-200 text-slate-800';
+
+              if (isMissing) {
+                statusText = 'MISSING';
+                badgeClasses = 'bg-rose-100 text-rose-800 border border-rose-200';
+                cardClasses = 'bg-rose-50/50 border-rose-200 text-rose-900';
+              } else if (isUnreadable) {
+                statusText = 'UNREADABLE';
+                badgeClasses = 'bg-rose-100 text-rose-800 border border-rose-200';
+                cardClasses = 'bg-rose-50/50 border-rose-200 text-rose-900';
+              } else if (isUnverified) {
+                statusText = 'UNVERIFIED';
+                badgeClasses = 'bg-amber-100 text-amber-800 border border-amber-200';
+                cardClasses = 'bg-amber-50/50 border-amber-200 text-amber-900';
+              }
+
               return (
                 <div 
                   key={idx} 
-                  className={`p-3 rounded-xl border flex items-center justify-between ${
-                    isMissing ? 'bg-rose-50/50 border-rose-200 text-rose-900' : 'bg-slate-50 border-slate-200 text-slate-800'
-                  }`}
+                  className={`p-3 rounded-xl border flex items-center justify-between ${cardClasses}`}
                 >
                   <div>
                     <span className="font-bold block">{mDoc.name}</span>
                     <span className="text-[11px] text-slate-500">{mDoc.description}</span>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
-                    isMissing ? 'bg-rose-200 text-rose-900' : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {isMissing ? 'MISSING' : 'VERIFIED'}
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${badgeClasses}`}>
+                    {statusText}
                   </span>
                 </div>
               );

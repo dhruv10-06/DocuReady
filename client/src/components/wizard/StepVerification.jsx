@@ -213,14 +213,14 @@ export default function StepVerification({
         )}
       </div>
 
-      {/* Missing vs Unreadable Mandatory Documents */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* Missing, Unreadable, and Unverified Mandatory Documents */}
+      <div className={`grid grid-cols-1 ${(report.unverifiedDocuments?.length > 0) ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-5`}>
         {/* Missing Documents Card */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
             <FileX className="w-5 h-5 text-rose-600" />
             <h4 className="font-bold text-slate-900 text-sm">
-              Missing Mandatory Documents ({missingDocuments.length})
+              Missing Mandatory Docs ({missingDocuments.length})
             </h4>
           </div>
 
@@ -258,7 +258,7 @@ export default function StepVerification({
           {unreadableDocuments.length === 0 ? (
             <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5 py-2">
               <CheckCircle2 className="w-4 h-4" />
-              All uploaded document scans are readable and parsed.
+              All uploaded document scans are readable.
             </p>
           ) : (
             <div className="space-y-2">
@@ -271,6 +271,27 @@ export default function StepVerification({
             </div>
           )}
         </div>
+
+        {/* Unverified Documents Card (Displayed when present) */}
+        {report.unverifiedDocuments?.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+              <HelpCircle className="w-5 h-5 text-blue-600" />
+              <h4 className="font-bold text-slate-900 text-sm">
+                Unverified Content ({report.unverifiedDocuments.length})
+              </h4>
+            </div>
+
+            <div className="space-y-2">
+              {report.unverifiedDocuments.map((uDoc, i) => (
+                <div key={i} className="p-3 rounded-xl bg-blue-50/50 border border-blue-200 text-xs">
+                  <div className="font-bold text-blue-900">{uDoc.filename}</div>
+                  <p className="text-[11px] text-blue-700 mt-1">{uDoc.reason || 'Document indicators could not be confirmed.'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Comprehensive Rule Checks Log */}
@@ -283,6 +304,7 @@ export default function StepVerification({
           {auditChecks.map((check) => {
             const isPassed = check.status === 'PASSED';
             const isWarning = check.status === 'WARNING';
+            const isUnverified = check.status === 'UNVERIFIED';
             return (
               <div key={check.id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
                 <div className="flex items-start gap-2.5">
@@ -290,6 +312,8 @@ export default function StepVerification({
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                   ) : isWarning ? (
                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  ) : isUnverified ? (
+                    <HelpCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                   ) : (
                     <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   )}
@@ -302,9 +326,9 @@ export default function StepVerification({
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
                   isPassed
                     ? 'bg-emerald-50 text-emerald-700'
-                    : isWarning
-                      ? 'bg-amber-50 text-amber-700'
-                      : 'bg-rose-50 text-rose-700'
+                    : isWarning || isUnverified
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}>
                   {check.status}
                 </span>

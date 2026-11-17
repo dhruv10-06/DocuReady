@@ -124,6 +124,9 @@ async function extractTextFromImage(filePath) {
   }
 }
 
+// Configurable OCR Confidence Threshold (Defaults to 50%)
+const OCR_CONFIDENCE_THRESHOLD = parseInt(process.env.OCR_CONFIDENCE_THRESHOLD, 10) || 50;
+
 /**
  * Process a document file (either PDF or image)
  */
@@ -143,7 +146,7 @@ async function processDocumentFile(fileInfo, docCategory) {
     }
 
     if (!rawText || rawText.trim().length < 20) {
-      console.log(`PDF text is sparse (${rawText.length} chars). Might be a scanned image PDF.`);
+      console.log(`PDF text is sparse (${(rawText || '').length} chars). Might be a scanned image PDF.`);
     }
   } else {
     // Image OCR
@@ -155,16 +158,41 @@ async function processDocumentFile(fileInfo, docCategory) {
     }
   }
 
-  // Run Information Extraction
+  // Run Information Extraction & Quality Evaluation
   const extracted = extractDocumentInformation(rawText, docCategory);
 
-  // If extraction error occurred, do not classify failed OCR as successful extraction
+  // If extraction error occurred, mark as unreadable
   if (extractionError) {
     extracted.isReadable = false;
     extracted.unreadableReason = extractionError;
     extracted.confidence = 0;
-  } else if (ocrConfidence > 0 && extracted.confidence) {
-    extracted.confidence = Math.round((extracted.confidence * 0.6) + (ocrConfidence * 0.4));
+  } else if (!isPdf) {
+    // Image OCR Quality Checks
+    if (ocrConfidence < OCR_CONFIDENCE_THRESHOLD) {
+      // If OCR confidence is below threshold and no strong identity/document fields were found
+      if (!extracted.candidateName && (!extracted.quality || extracted.quality.keywordMatches < 2)) {
+        extracted.isReadable = false;
+        extracted.unreadableReason = `OCR confidence score (${ocrConfidence}%) is below acceptable threshold (${OCR_CONFIDENCE_THRESHOLD}%). Text contains insufficient legible characters or no recognizable document structure.`;
+        extracted.confidence = Math.min(35, ocrConfidence);
+      } else {
+        // Borderline OCR with some isolated keywords: blend confidence accurately
+        extracted.confidence = Math.round((extracted.confidence * 0.5) + (ocrConfidence * 0.5));
+      }
+    } else {
+      extracted.confidence = Math.round((extracted.confidence * 0.6) + (ocrConfidence * 0.4));
+    }
+  } else {
+    // PDF text sparse check
+    if (!rawText || rawText.trim().length < 20) {
+      extracted.isReadable = false;
+      extracted.unreadableReason = 'PDF file contains no extractable digital text. If this is a scanned document, please submit an image format (JPG/PNG) or an OCR-searchable PDF.';
+      extracted.confidence = 10;
+    }
+  }
+
+  // Final sanity check: if marked unreadable, ensure confidence is not falsely high
+  if (!extracted.isReadable) {
+    extracted.confidence = Math.min(extracted.confidence, 40);
   }
 
   return {

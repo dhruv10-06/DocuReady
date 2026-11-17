@@ -231,15 +231,80 @@ function extractExtraDetails(text, docCategory) {
   return details;
 }
 
+// Common vocabulary of official documents across Indian scholarship, admission, and welfare schemes
+const COMMON_DOCUMENT_KEYWORDS = [
+  'government', 'india', 'republic', 'state', 'department', 'authority', 'office',
+  'name', 'birth', 'date', 'father', 'mother', 'gender', 'male', 'female',
+  'aadhaar', 'uidai', 'enrollment', 'voter', 'election', 'passport', 'card', 'identity',
+  'certificate', 'certify', 'certified', 'income', 'tahsildar', 'tehsildar', 'revenue',
+  'marksheet', 'marks', 'board', 'secondary', 'examination', 'cbse', 'icse', 'roll',
+  'school', 'college', 'university', 'student', 'candidate', 'applicant', 'application',
+  'registration', 'annual', 'rupees', 'valid', 'validity', 'address', 'signature',
+  'result', 'grade', 'cgpa', 'percentage', 'passing', 'total', 'scheme', 'scholarship'
+];
+
+/**
+ * Evaluate the linguistic and structural quality of extracted text
+ */
+function evaluateTextQuality(text) {
+  if (!text || typeof text !== 'string') {
+    return {
+      alphanumericCount: 0,
+      wordCount: 0,
+      keywordMatches: 0,
+      hasDocumentPatterns: false,
+      meaningfulWords: [],
+      hasLegibleVocabulary: false,
+    };
+  }
+
+  const alphanumericCount = (text.match(/[a-zA-Z0-9]/g) || []).length;
+  const words = text.toLowerCase().match(/[a-z]{3,}/g) || [];
+  const wordCount = words.length;
+
+  const matchedKeywords = new Set();
+  for (const w of words) {
+    if (COMMON_DOCUMENT_KEYWORDS.includes(w)) {
+      matchedKeywords.add(w);
+    }
+  }
+
+  const keywordMatches = matchedKeywords.size;
+
+  // Check for common structural document patterns (dates, 12-digit Aadhaar/ID, roll numbers)
+  // This accommodates bilingual or regional documents with limited English text
+  const hasDatePattern = /\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b/.test(text);
+  const hasIdPattern = /\b\d{4}[\s\-]\d{4}[\s\-]\d{4}\b|\b[A-Za-z0-9\/\-]{7,25}\b/.test(text);
+  const hasDocumentPatterns = hasDatePattern || hasIdPattern;
+
+  // A text has legible document vocabulary if:
+  // 1. Matches at least 1 document keyword and has basic text, OR
+  // 2. Contains standard document date / ID structure with >= 20 characters, OR
+  // 3. Contains at least 6 standard words and >= 35 characters
+  const hasLegibleVocabulary = 
+    keywordMatches >= 1 || 
+    (hasDocumentPatterns && alphanumericCount >= 20) || 
+    (wordCount >= 6 && alphanumericCount >= 35);
+
+  return {
+    alphanumericCount,
+    wordCount,
+    keywordMatches,
+    hasDocumentPatterns,
+    meaningfulWords: Array.from(matchedKeywords),
+    hasLegibleVocabulary,
+  };
+}
+
 /**
  * Main information extraction function
  */
 function extractDocumentInformation(rawText, docCategory) {
   const text = cleanText(rawText);
+  const quality = evaluateTextQuality(text);
 
-  // Check readability
-  const alphanumericCount = (text.match(/[a-zA-Z0-9]/g) || []).length;
-  if (!text || alphanumericCount < 15) {
+  // Check 1: Empty or extremely short text
+  if (!text || quality.alphanumericCount < 20) {
     return {
       candidateName: null,
       dateOfBirth: null,
@@ -250,8 +315,9 @@ function extractDocumentInformation(rawText, docCategory) {
       extraDetails: {},
       confidence: 10,
       isReadable: false,
-      unreadableReason: 'Extracted text is empty or contains fewer than 15 readable characters. The image or PDF scan may be blurry, corrupt, or inverted.',
+      unreadableReason: 'Extracted text is empty or contains fewer than 20 readable characters. The image or PDF scan may be blurry, corrupt, or inverted.',
       rawSnippet: text.slice(0, 200),
+      quality,
     };
   }
 
@@ -263,7 +329,7 @@ function extractDocumentInformation(rawText, docCategory) {
   const authority = extractAuthority(text);
   const extraDetails = extractExtraDetails(text, docCategory);
 
-  // Confidence calculation
+  // Count detected structured fields
   let foundFields = 0;
   if (candidateName) foundFields++;
   if (dateOfBirth) foundFields++;
@@ -271,8 +337,49 @@ function extractDocumentInformation(rawText, docCategory) {
   if (issueDate) foundFields++;
   if (authority) foundFields++;
 
-  let confidence = Math.min(95, 45 + foundFields * 10);
-  if (!candidateName) confidence = Math.min(confidence, 55);
+  // Check 2: Meaningless text, scene photo, or random noise without document vocabulary
+  if (foundFields === 0 && !quality.hasLegibleVocabulary) {
+    return {
+      candidateName: null,
+      dateOfBirth: null,
+      documentNumber: null,
+      issueDate: null,
+      expiryDate: null,
+      authority: null,
+      extraDetails: {},
+      confidence: Math.min(30, Math.max(10, Math.round(quality.alphanumericCount / 3))),
+      isReadable: false,
+      unreadableReason: 'Extracted text contains insufficient legible document vocabulary or recognizable structure. The file appears to be a photograph or scene without document text.',
+      rawSnippet: text.slice(0, 200),
+      quality,
+    };
+  }
+
+  // Check 3: Low quality scan where no core identity or document fields could be isolated
+  if (foundFields === 0 && quality.keywordMatches < 3) {
+    return {
+      candidateName: null,
+      dateOfBirth: null,
+      documentNumber: null,
+      issueDate: null,
+      expiryDate: null,
+      authority: null,
+      extraDetails,
+      confidence: 35,
+      isReadable: false,
+      unreadableReason: 'Low scan legibility: standard document keywords were sparsely detected, but key applicant fields could not be extracted.',
+      rawSnippet: text.slice(0, 200),
+      quality,
+    };
+  }
+
+  // Confidence calculation for readable documents
+  let confidence = Math.min(95, 50 + foundFields * 10);
+  if (!candidateName) {
+    confidence = Math.min(confidence, 55);
+  } else if (foundFields >= 3) {
+    confidence = Math.max(confidence, 85);
+  }
 
   return {
     candidateName,
@@ -286,6 +393,7 @@ function extractDocumentInformation(rawText, docCategory) {
     isReadable: true,
     unreadableReason: null,
     rawSnippet: text.slice(0, 300),
+    quality,
   };
 }
 
@@ -293,4 +401,6 @@ module.exports = {
   extractDocumentInformation,
   cleanText,
   parseDate,
+  evaluateTextQuality,
+  COMMON_DOCUMENT_KEYWORDS,
 };

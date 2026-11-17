@@ -140,6 +140,11 @@ export default function StepReview({
                       <Check className="w-3.5 h-3.5" />
                       User Verified
                     </span>
+                  ) : (doc.extractedData?.confidence || 0) < 60 ? (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Low OCR Confidence: {doc.extractedData?.confidence || 0}%
+                    </span>
                   ) : (
                     <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                       OCR Confidence: {doc.extractedData?.confidence || 90}%

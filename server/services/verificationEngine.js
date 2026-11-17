@@ -386,6 +386,244 @@ function checkDocumentValidity(doc, categoryRules) {
 }
 
 /**
+ * Conservative content-based validation of document type
+ */
+function verifyDocumentContent(doc) {
+  const data = doc.extractedData || {};
+  const rawText = (doc.rawText || '').toLowerCase();
+  const quality = data.quality || {};
+  const hasRawDocumentEvidence = Boolean(
+    quality.hasLegibleVocabulary ||
+    quality.keywordMatches >= 1 ||
+    quality.hasDocumentPatterns ||
+    rawText.match(/\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b/) ||
+    rawText.match(/\b\d{4}[\s\-]\d{4}[\s\-]\d{4}\b/) ||
+    (rawText.match(/[a-z]{3,}/g) || []).length >= 5
+  );
+
+  // If applicant manually reviewed/edited fields:
+  if (doc.isUserVerified) {
+    // If the physical file was an unreadable scan or had zero document evidence
+    if (!hasRawDocumentEvidence || data.scanWasReadable === false || data.isReadable === false) {
+      return {
+        status: 'UNVERIFIED',
+        severity: 'WARNING',
+        message: 'Applicant manually supplied field details, but the uploaded file contains no verifiable document text or indicators. An official document scan is required.',
+        isUserConfirmed: true,
+        unverifiableFile: true,
+      };
+    }
+
+    // Genuine document scan where applicant confirmed or corrected OCR fields
+    return {
+      status: 'VERIFIED',
+      severity: 'PASS',
+      message: 'Document details manually reviewed and confirmed by applicant against document scan.',
+      isUserConfirmed: true,
+    };
+  }
+
+  // Not user verified: check if scan is unreadable
+  const isReadable = data.isReadable !== false;
+  if (!isReadable) {
+    return {
+      status: 'UNREADABLE',
+      severity: 'CRITICAL',
+      message: data.unreadableReason || 'Document text is unreadable or contains no legible document content.',
+    };
+  }
+
+  const category = doc.docCategory;
+
+  // Identity Proof category markers
+  const identityKeywords = [
+    'aadhaar', 'uidai', 'unique identification', 'identity card', 'voter', 'election commission',
+    'passport', 'pan card', 'driving licence', 'driving license', 'national identity',
+    'government of india', 'republic of india', 'vid', 'uid'
+  ];
+  const hasIdentityKeyword = identityKeywords.some(kw => rawText.includes(kw));
+
+  // Marksheet category markers
+  const marksheetKeywords = [
+    'marksheet', 'marks card', 'statement of marks', 'board of secondary', 'central board',
+    'cbse', 'icse', 'examination result', 'roll no', 'subject', 'total marks', 'cgpa', 'percentage'
+  ];
+  const hasMarksheetKeyword = marksheetKeywords.some(kw => rawText.includes(kw));
+
+  // Income Certificate category markers
+  const incomeKeywords = [
+    'income certificate', 'annual income', 'family income', 'revenue department',
+    'tahsildar', 'tehsildar', 'sub-divisional magistrate', 'sdm'
+  ];
+  const hasIncomeKeyword = incomeKeywords.some(kw => rawText.includes(kw));
+
+  // Application Form category markers
+  const applicationKeywords = [
+    'application form', 'scholarship application', 'admission form', 'scheme application',
+    'registration form', 'acknowledgement slip', 'summary of application'
+  ];
+  const hasApplicationKeyword = applicationKeywords.some(kw => rawText.includes(kw));
+
+  // Caste Certificate category markers
+  const casteKeywords = [
+    'caste certificate', 'community certificate', 'scheduled caste', 'scheduled tribe',
+    'other backward class', 'obc certificate', 'sc certificate', 'st certificate'
+  ];
+  const hasCasteKeyword = casteKeywords.some(kw => rawText.includes(kw));
+
+  switch (category) {
+    case 'IDENTITY_PROOF': {
+      if (hasMarksheetKeyword && !hasIdentityKeyword) {
+        return {
+          status: 'CATEGORY_MISMATCH',
+          severity: 'CRITICAL',
+          message: 'Document appears to be an Academic Marksheet rather than Identity Proof.',
+          detectedCategory: 'MARKSHEET',
+        };
+      }
+      if (hasIncomeKeyword && !hasIdentityKeyword) {
+        return {
+          status: 'CATEGORY_MISMATCH',
+          severity: 'CRITICAL',
+          message: 'Document appears to be an Income Certificate rather than Identity Proof.',
+          detectedCategory: 'INCOME_CERTIFICATE',
+        };
+      }
+
+      const hasIdentityData = Boolean(
+        data.candidateName && (data.dateOfBirth || data.documentNumber || hasIdentityKeyword || rawText.includes('male') || rawText.includes('female'))
+      );
+
+      if (hasIdentityKeyword || hasIdentityData) {
+        return {
+          status: 'VERIFIED',
+          severity: 'PASS',
+          message: 'Document content verified as Identity Proof with matching government identity indicators and candidate details.',
+        };
+      }
+
+      return {
+        status: 'UNVERIFIED',
+        severity: 'WARNING',
+        message: 'Document content could not be established conclusively as Identity Proof. Standard identity headers, photo ID markers, or candidate details were not detected.',
+      };
+    }
+
+    case 'MARKSHEET': {
+      if (hasIdentityKeyword && !hasMarksheetKeyword) {
+        return {
+          status: 'CATEGORY_MISMATCH',
+          severity: 'CRITICAL',
+          message: 'Document appears to be Identity Proof rather than an Academic Marksheet.',
+          detectedCategory: 'IDENTITY_PROOF',
+        };
+      }
+      if (hasIncomeKeyword && !hasMarksheetKeyword) {
+        return {
+          status: 'CATEGORY_MISMATCH',
+          severity: 'CRITICAL',
+          message: 'Document appears to be an Income Certificate rather than an Academic Marksheet.',
+          detectedCategory: 'INCOME_CERTIFICATE',
+        };
+      }
+
+      const hasMarksheetData = Boolean(
+        data.candidateName && (data.documentNumber || data.extraDetails?.score || data.extraDetails?.passingYear || hasMarksheetKeyword)
+      );
+
+      if (hasMarksheetKeyword || hasMarksheetData) {
+        return {
+          status: 'VERIFIED',
+          severity: 'PASS',
+          message: 'Document content verified as Academic Marksheet / Grade Record.',
+        };
+      }
+
+      return {
+        status: 'UNVERIFIED',
+        severity: 'WARNING',
+        message: 'Document content could not be established conclusively as an Academic Marksheet. Board headers, roll number, or score breakdown were not detected.',
+      };
+    }
+
+    case 'INCOME_CERTIFICATE': {
+      if (hasMarksheetKeyword && !hasIncomeKeyword) {
+        return {
+          status: 'CATEGORY_MISMATCH',
+          severity: 'CRITICAL',
+          message: 'Document appears to be an Academic Marksheet rather than an Income Certificate.',
+          detectedCategory: 'MARKSHEET',
+        };
+      }
+      if (hasIdentityKeyword && !hasIncomeKeyword) {
+        return {
+          status: 'CATEGORY_MISMATCH',
+          severity: 'CRITICAL',
+          message: 'Document appears to be Identity Proof rather than an Income Certificate.',
+          detectedCategory: 'IDENTITY_PROOF',
+        };
+      }
+
+      const hasIncomeData = Boolean(
+        (data.candidateName || data.extraDetails?.fatherName) && (data.extraDetails?.incomeAmount || hasIncomeKeyword)
+      );
+
+      if (hasIncomeKeyword || hasIncomeData) {
+        return {
+          status: 'VERIFIED',
+          severity: 'PASS',
+          message: 'Document content verified as Competent Authority Income Certificate.',
+        };
+      }
+
+      return {
+        status: 'UNVERIFIED',
+        severity: 'WARNING',
+        message: 'Document content could not be established conclusively as an Income Certificate. Competent revenue authority certification or income figures were not detected.',
+      };
+    }
+
+    case 'APPLICATION_FORM': {
+      if (hasApplicationKeyword || (data.candidateName && data.documentNumber)) {
+        return {
+          status: 'VERIFIED',
+          severity: 'PASS',
+          message: 'Document content verified as Application Form.',
+        };
+      }
+      return {
+        status: 'UNVERIFIED',
+        severity: 'WARNING',
+        message: 'Document could not be verified as an official Application Form.',
+      };
+    }
+
+    case 'CASTE_CERTIFICATE': {
+      if (hasCasteKeyword || (data.candidateName && rawText.includes('certif'))) {
+        return {
+          status: 'VERIFIED',
+          severity: 'PASS',
+          message: 'Document content verified as Caste / Community Certificate.',
+        };
+      }
+      return {
+        status: 'UNVERIFIED',
+        severity: 'WARNING',
+        message: 'Document could not be verified as a Caste / Community Certificate.',
+      };
+    }
+
+    default: {
+      return {
+        status: 'VERIFIED',
+        severity: 'PASS',
+        message: 'Document format accepted.',
+      };
+    }
+  }
+}
+
+/**
  * Main cross-document verification and audit execution engine
  */
 function performAuditVerification(audit) {
@@ -397,7 +635,13 @@ function performAuditVerification(audit) {
   const rawDiscrepancies = [];
   const missingDocuments = [];
   const unreadableDocuments = [];
+  const unverifiedDocuments = [];
   const rawCorrectiveActions = [];
+
+  // 1. First Pass: Evaluate Content and Readability for each document
+  for (const doc of documents) {
+    doc.contentVerification = verifyDocumentContent(doc);
+  }
 
   // Group uploaded documents by category
   const uploadedCategoryMap = {};
@@ -408,7 +652,7 @@ function performAuditVerification(audit) {
     uploadedCategoryMap[doc.docCategory].push(doc);
   }
 
-  // 1. Mandatory Document Category Checks
+  // 2. Mandatory Document Category Compliance Checks
   for (const reqDoc of categoryConfig.mandatoryDocuments) {
     const matchingDocs = uploadedCategoryMap[reqDoc.type] || [];
     if (matchingDocs.length === 0) {
@@ -435,14 +679,105 @@ function performAuditVerification(audit) {
         targetDocument: reqDoc.name,
       });
     } else {
-      auditChecks.push({
-        id: `mand-${reqDoc.type}`,
-        title: `Mandatory Document: ${reqDoc.name}`,
-        status: 'PASSED',
-        severity: 'PASS',
-        category: 'COMPLIANCE',
-        details: `Uploaded (${matchingDocs.length} file: ${matchingDocs.map(d => d.filename).join(', ')})`,
-      });
+      // Check verification quality of the uploaded documents for this mandatory requirement
+      const verifiedDoc = matchingDocs.find(d => 
+        (d.contentVerification?.status === 'VERIFIED') && !d.contentVerification?.unverifiableFile
+      );
+      const manualUnverifiedDoc = matchingDocs.find(d => 
+        d.isUserVerified && d.contentVerification?.unverifiableFile
+      );
+      const mismatchDoc = matchingDocs.find(d => d.contentVerification?.status === 'CATEGORY_MISMATCH');
+      const unreadableDoc = matchingDocs.find(d => !d.extractedData?.isReadable);
+
+      if (verifiedDoc) {
+        auditChecks.push({
+          id: `mand-${reqDoc.type}`,
+          title: `Mandatory Document: ${reqDoc.name}`,
+          status: 'PASSED',
+          severity: 'PASS',
+          category: 'COMPLIANCE',
+          details: `Provided and verified (${verifiedDoc.filename})`,
+        });
+      } else if (manualUnverifiedDoc) {
+        auditChecks.push({
+          id: `mand-${reqDoc.type}`,
+          title: `Mandatory Document: ${reqDoc.name}`,
+          status: 'UNVERIFIED',
+          severity: 'WARNING',
+          category: 'COMPLIANCE',
+          details: `Uploaded file "${manualUnverifiedDoc.filename}" has applicant-supplied fields, but file content cannot be verified as an official ${reqDoc.name}.`,
+        });
+
+        unverifiedDocuments.push({
+          type: reqDoc.type,
+          name: reqDoc.name,
+          filename: manualUnverifiedDoc.filename,
+          reason: 'Manual field entry cannot substitute for a verifiable document scan.',
+        });
+
+        rawCorrectiveActions.push({
+          priority: 'HIGH',
+          category: 'Document Verification',
+          action: `Upload an official, legible scan of your ${reqDoc.name}. Manually entering details on an unreadable image does not satisfy document verification requirements.`,
+          targetDocument: manualUnverifiedDoc.filename,
+        });
+      } else if (mismatchDoc) {
+        auditChecks.push({
+          id: `mand-${reqDoc.type}`,
+          title: `Mandatory Document: ${reqDoc.name}`,
+          status: 'FAILED',
+          severity: 'CRITICAL',
+          category: 'COMPLIANCE',
+          details: `Uploaded file "${mismatchDoc.filename}" does not match required category ${reqDoc.name} (${mismatchDoc.contentVerification?.message}).`,
+        });
+
+        rawCorrectiveActions.push({
+          priority: 'HIGH',
+          category: 'Document Category Mismatch',
+          action: `The file uploaded for ${reqDoc.name} appears to be a ${mismatchDoc.contentVerification?.detectedCategory || 'different document'}. Upload your official ${reqDoc.name}.`,
+          targetDocument: mismatchDoc.filename,
+        });
+      } else if (unreadableDoc) {
+        auditChecks.push({
+          id: `mand-${reqDoc.type}`,
+          title: `Mandatory Document: ${reqDoc.name}`,
+          status: 'FAILED',
+          severity: 'CRITICAL',
+          category: 'COMPLIANCE',
+          details: `Uploaded file "${unreadableDoc.filename}" for ${reqDoc.name} is unreadable and cannot be verified.`,
+        });
+
+        rawCorrectiveActions.push({
+          priority: 'HIGH',
+          category: 'Unreadable Mandatory Document',
+          action: `The file uploaded for ${reqDoc.name} contains no legible document text. Upload a clear, high-contrast scan of your official ${reqDoc.name}.`,
+          targetDocument: unreadableDoc.filename,
+        });
+      } else {
+        // Uploaded and readable, but contents could not be established conclusively
+        auditChecks.push({
+          id: `mand-${reqDoc.type}`,
+          title: `Mandatory Document: ${reqDoc.name}`,
+          status: 'UNVERIFIED',
+          severity: 'WARNING',
+          category: 'COMPLIANCE',
+          details: `Uploaded file "${matchingDocs[0].filename}" was submitted under ${reqDoc.name}, but standard document indicators were not conclusively detected.`,
+        });
+
+        unverifiedDocuments.push({
+          type: reqDoc.type,
+          name: reqDoc.name,
+          filename: matchingDocs[0].filename,
+          reason: matchingDocs[0].contentVerification?.message,
+        });
+
+        rawCorrectiveActions.push({
+          priority: 'MEDIUM',
+          category: 'Document Verification',
+          action: `Confirm that "${matchingDocs[0].filename}" is your official ${reqDoc.name} and review extracted fields in Step 3 before submitting.`,
+          targetDocument: matchingDocs[0].filename,
+        });
+      }
     }
   }
 
@@ -451,56 +786,24 @@ function performAuditVerification(audit) {
     for (const optDoc of categoryConfig.optionalDocuments) {
       const matchingDocs = uploadedCategoryMap[optDoc.type] || [];
       if (matchingDocs.length > 0) {
+        const isVerified = matchingDocs.some(d => d.contentVerification?.status === 'VERIFIED' || d.isUserVerified);
         auditChecks.push({
           id: `opt-${optDoc.type}`,
           title: `Optional Document: ${optDoc.name}`,
-          status: 'PASSED',
-          severity: 'INFO',
+          status: isVerified ? 'PASSED' : 'UNVERIFIED',
+          severity: isVerified ? 'INFO' : 'WARNING',
           category: 'COMPLIANCE',
-          details: `Provided (${matchingDocs.map(d => d.filename).join(', ')})`,
+          details: isVerified
+            ? `Provided and verified (${matchingDocs.map(d => d.filename).join(', ')})`
+            : `Provided (${matchingDocs[0].filename}), but content is not conclusively verified.`,
         });
       }
     }
   }
 
-  // 2. Readability & Scan Quality Checks
+  // 3. Document-by-Document Quality, Readability, and Content Verification Checks
   for (const doc of documents) {
-    const isReadable = doc.extractedData?.isReadable !== false;
-    if (!isReadable) {
-      unreadableDocuments.push({
-        id: doc.id,
-        filename: doc.filename,
-        docCategory: doc.docCategory,
-        reason: doc.extractedData?.unreadableReason || 'Low scan clarity or unreadable text',
-      });
-
-      auditChecks.push({
-        id: `read-${doc.id}`,
-        title: `Readability Check: ${doc.filename}`,
-        status: 'FAILED',
-        severity: 'CRITICAL',
-        category: 'LEGIBILITY',
-        details: `Document text could not be reliably extracted. Reason: ${doc.extractedData?.unreadableReason || 'Unreadable scan'}.`,
-      });
-
-      rawCorrectiveActions.push({
-        priority: 'HIGH',
-        category: 'Scan Legibility',
-        action: `Re-scan "${doc.filename}" at 300 DPI or higher contrast, ensuring all text and stamps are sharply focused.`,
-        targetDocument: doc.filename,
-      });
-    } else {
-      auditChecks.push({
-        id: `read-${doc.id}`,
-        title: `Readability Check: ${doc.filename}`,
-        status: 'PASSED',
-        severity: 'PASS',
-        category: 'LEGIBILITY',
-        details: `Readable text extracted with ${doc.extractedData?.confidence || 85}% confidence score.`,
-      });
-    }
-
-    // 3. Document File Size and Format Validation
+    // 3A. File Format and Size Validation
     const isAllowedMime = rules.allowedMimeTypes.includes(doc.mimeType);
     const sizeInMB = (doc.size || 0) / (1024 * 1024);
     const isAllowedSize = sizeInMB <= rules.maxAllowedFileSizeMB;
@@ -529,7 +832,117 @@ function performAuditVerification(audit) {
         status: 'PASSED',
         severity: 'PASS',
         category: 'FORMAT',
-        details: `Compliant format (${doc.mimeType}) and size (${(doc.size / 1024).toFixed(0)} KB).`,
+        details: `File format (${doc.mimeType}) and size (${sizeInMB.toFixed(2)} MB) meet standard portal requirements.`,
+      });
+    }
+
+    // 3B. Readability & Scan Quality Checks
+    const isReadable = doc.extractedData?.isReadable !== false;
+    const confidence = doc.extractedData?.confidence || 0;
+
+    if (!isReadable) {
+      unreadableDocuments.push({
+        id: doc.id,
+        filename: doc.filename,
+        docCategory: doc.docCategory,
+        reason: doc.extractedData?.unreadableReason || 'Low scan clarity or unreadable text',
+      });
+
+      auditChecks.push({
+        id: `read-${doc.id}`,
+        title: `Readability Check: ${doc.filename}`,
+        status: 'FAILED',
+        severity: 'CRITICAL',
+        category: 'LEGIBILITY',
+        details: `Document text could not be reliably extracted. Reason: ${doc.extractedData?.unreadableReason || 'Unreadable scan'}.`,
+      });
+
+      rawCorrectiveActions.push({
+        priority: 'HIGH',
+        category: 'Scan Legibility',
+        action: `Re-scan "${doc.filename}" at 300 DPI with good lighting and high contrast, ensuring all text and stamps are sharply focused.`,
+        targetDocument: doc.filename,
+      });
+    } else if (confidence < 60) {
+      // Borderline low-confidence extraction
+      auditChecks.push({
+        id: `read-${doc.id}`,
+        title: `Readability Check: ${doc.filename}`,
+        status: 'WARNING',
+        severity: 'WARNING',
+        category: 'LEGIBILITY',
+        details: `Low-confidence OCR text extraction (${confidence}%). Some characters may be misread or degraded. Please verify extracted fields in Step 3.`,
+      });
+
+      rawCorrectiveActions.push({
+        priority: 'MEDIUM',
+        category: 'Scan Legibility',
+        action: `Review and verify the extracted fields for "${doc.filename}" in Step 3, or re-upload a cleaner scan if misreadings occur.`,
+        targetDocument: doc.filename,
+      });
+    } else {
+      auditChecks.push({
+        id: `read-${doc.id}`,
+        title: `Readability Check: ${doc.filename}`,
+        status: 'PASSED',
+        severity: 'PASS',
+        category: 'LEGIBILITY',
+        details: `Readable text extracted with ${confidence}% confidence score.`,
+      });
+    }
+
+    // 3C. Document Content & Type Verification
+    const contentRes = doc.contentVerification || verifyDocumentContent(doc);
+    if (contentRes.status === 'VERIFIED') {
+      auditChecks.push({
+        id: `content-${doc.id}`,
+        title: `Content Verification: ${doc.filename}`,
+        status: 'PASSED',
+        severity: 'PASS',
+        category: 'DOCUMENT_TYPE',
+        details: contentRes.message,
+      });
+    } else if (contentRes.status === 'CATEGORY_MISMATCH') {
+      auditChecks.push({
+        id: `content-${doc.id}`,
+        title: `Content Verification: ${doc.filename}`,
+        status: 'FAILED',
+        severity: 'CRITICAL',
+        category: 'DOCUMENT_TYPE',
+        details: contentRes.message,
+      });
+
+      rawCorrectiveActions.push({
+        priority: 'HIGH',
+        category: 'Category Mismatch',
+        action: `Document "${doc.filename}" does not match declared category "${doc.docCategory}". Upload the correct document.`,
+        targetDocument: doc.filename,
+      });
+    } else if (contentRes.status === 'UNVERIFIED') {
+      auditChecks.push({
+        id: `content-${doc.id}`,
+        title: `Content Verification: ${doc.filename}`,
+        status: 'UNVERIFIED',
+        severity: 'WARNING',
+        category: 'DOCUMENT_TYPE',
+        details: contentRes.message,
+      });
+
+      rawCorrectiveActions.push({
+        priority: 'MEDIUM',
+        category: 'Content Verification',
+        action: `Verify that "${doc.filename}" is an official ${doc.docCategory} and confirm details manually in Step 3.`,
+        targetDocument: doc.filename,
+      });
+    } else {
+      // UNREADABLE
+      auditChecks.push({
+        id: `content-${doc.id}`,
+        title: `Content Verification: ${doc.filename}`,
+        status: 'FAILED',
+        severity: 'CRITICAL',
+        category: 'DOCUMENT_TYPE',
+        details: `Document text is unreadable. Content cannot be verified as ${doc.docCategory}.`,
       });
     }
 
@@ -763,6 +1176,7 @@ function performAuditVerification(audit) {
   const totalChecks = auditChecks.length;
   const passedChecks = auditChecks.filter(c => c.status === 'PASSED').length;
   const warningChecks = auditChecks.filter(c => c.status === 'WARNING').length;
+  const unverifiedChecks = auditChecks.filter(c => c.status === 'UNVERIFIED').length;
   const failedChecks = auditChecks.filter(c => c.status === 'FAILED').length;
 
   let overallStatus = 'READY_FOR_REVIEW';
@@ -775,17 +1189,23 @@ function performAuditVerification(audit) {
   const hasUnreadableMandatory = unreadableDocuments.some(u => {
     return categoryConfig.mandatoryDocuments.some(m => m.type === u.docCategory);
   });
+  const hasUnverifiedMandatory = unverifiedDocuments.length > 0;
 
   if (hasMissingMandatory || hasUnreadableMandatory || hasCriticalMismatch) {
     overallStatus = 'INCOMPLETE';
     statusBadgeText = 'INCOMPLETE';
     statusColor = 'rose';
     summaryNotes = 'Application has blocking deficiencies (missing documents, unreadable scans, or critical cross-document mismatches) that will likely lead to portal rejection.';
-  } else if (warningChecks > 0 || crossDocDiscrepancies.some(d => d.severity === 'WARNING')) {
+  } else if (hasUnverifiedMandatory) {
     overallStatus = 'NEEDS_ATTENTION';
     statusBadgeText = 'NEEDS ATTENTION';
     statusColor = 'amber';
-    summaryNotes = 'Application documents are complete, but minor name variations or expiring certificates were detected. Please review recommendations before final submission.';
+    summaryNotes = 'Mandatory documents were uploaded, but one or more could not be conclusively verified against standard document indicators. Please confirm details in Step 3 before submitting.';
+  } else if (warningChecks > 0 || unverifiedChecks > 0 || crossDocDiscrepancies.some(d => d.severity === 'WARNING')) {
+    overallStatus = 'NEEDS_ATTENTION';
+    statusBadgeText = 'NEEDS ATTENTION';
+    statusColor = 'amber';
+    summaryNotes = 'Application documents are complete, but minor variations or unverified fields were detected. Please review recommendations before final submission.';
   } else {
     overallStatus = 'READY_FOR_REVIEW';
     statusBadgeText = 'READY FOR REVIEW';
@@ -797,8 +1217,10 @@ function performAuditVerification(audit) {
   let readinessScore = 100;
   readinessScore -= (missingDocuments.length * 25);
   readinessScore -= (failedChecks * 15);
-  readinessScore -= (warningChecks * 7);
-  readinessScore = Math.max(15, Math.min(100, readinessScore));
+  readinessScore -= (unverifiedDocuments.length * 12);
+  readinessScore -= (warningChecks * 5);
+  readinessScore -= (unverifiedChecks * 5);
+  readinessScore = Math.max(10, Math.min(100, Math.round(readinessScore)));
 
   return {
     category: categoryConfig,
@@ -811,13 +1233,16 @@ function performAuditVerification(audit) {
       totalChecks,
       passedChecks,
       warningChecks,
+      unverifiedChecks,
       failedChecks,
       missingDocumentsCount: missingDocuments.length,
       unreadableDocumentsCount: unreadableDocuments.length,
+      unverifiedDocumentsCount: unverifiedDocuments.length,
       crossDocDiscrepanciesCount: crossDocDiscrepancies.length,
     },
     missingDocuments,
     unreadableDocuments,
+    unverifiedDocuments,
     crossDocDiscrepancies,
     auditChecks,
     correctiveActions,
@@ -828,6 +1253,7 @@ function performAuditVerification(audit) {
 
 module.exports = {
   performAuditVerification,
+  verifyDocumentContent,
   compareNames,
   compareDateOfBirth,
   checkDocumentValidity,

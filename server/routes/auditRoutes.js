@@ -382,15 +382,19 @@ router.put('/audits/:id/documents/:docId', requireAuditOwnership, (req, res) => 
       doc.docCategory = docCategory;
     }
 
+    const wasOriginallyReadable = doc.extractedData?.isReadable !== false;
     doc.extractedData = {
       ...doc.extractedData,
-      candidateName: candidateName !== undefined ? candidateName : doc.extractedData.candidateName,
-      dateOfBirth: dateOfBirth !== undefined ? dateOfBirth : doc.extractedData.dateOfBirth,
-      documentNumber: documentNumber !== undefined ? documentNumber : doc.extractedData.documentNumber,
-      issueDate: issueDate !== undefined ? issueDate : doc.extractedData.issueDate,
-      expiryDate: expiryDate !== undefined ? expiryDate : doc.extractedData.expiryDate,
-      authority: authority !== undefined ? authority : doc.extractedData.authority,
-      isReadable: true,
+      candidateName: candidateName !== undefined ? candidateName : doc.extractedData?.candidateName,
+      dateOfBirth: dateOfBirth !== undefined ? dateOfBirth : doc.extractedData?.dateOfBirth,
+      documentNumber: documentNumber !== undefined ? documentNumber : doc.extractedData?.documentNumber,
+      issueDate: issueDate !== undefined ? issueDate : doc.extractedData?.issueDate,
+      expiryDate: expiryDate !== undefined ? expiryDate : doc.extractedData?.expiryDate,
+      authority: authority !== undefined ? authority : doc.extractedData?.authority,
+      // Record manual user intervention without falsifying whether the physical scan itself was readable
+      isReadable: wasOriginallyReadable,
+      isUserSupplied: true,
+      scanWasReadable: wasOriginallyReadable,
     };
 
     doc.isUserVerified = true;
