@@ -126,8 +126,44 @@ async function runTests() {
   console.assert(unreadableResult.candidateName === null, 'Should not invent false data');
   console.log('✓ TEST 6 PASSED: Blurry/unreadable scans handled gracefully without inventing data.\n');
 
+  // Test 7: Image OCR Extraction (PNG & JPG)
+  console.log('--- TEST 7: Image OCR Text Extraction (PNG & JPG) ---');
+  const samplePngPath = path.join(__dirname, '..', 'public', 'sample-docs', 'Synthetic_Aadhaar_Rahul_Sharma.png');
+  const aadhaarPngResult = await processDocumentFile({
+    path: samplePngPath,
+    mimetype: 'image/png',
+    originalname: 'Synthetic_Aadhaar_Rahul_Sharma.png',
+    size: fs.statSync(samplePngPath).size,
+  }, 'IDENTITY_PROOF');
+
+  console.log('Parsed Aadhaar PNG Data:');
+  console.log(' - Candidate Name:', aadhaarPngResult.extractedData.candidateName);
+  console.log(' - Date of Birth:', aadhaarPngResult.extractedData.dateOfBirth);
+  console.log(' - Readable:', aadhaarPngResult.extractedData.isReadable);
+  console.assert(aadhaarPngResult.extractedData.isReadable === true, 'PNG scan should be readable');
+  console.assert(aadhaarPngResult.extractedData.candidateName === 'Rahul Sharma', 'Name should be Rahul Sharma');
+  console.assert(aadhaarPngResult.extractedData.dateOfBirth === '12/05/2005', 'DOB should be 12/05/2005');
+
+  const sampleJpgPath = path.join(__dirname, '..', 'public', 'sample-docs', 'Synthetic_Income_Certificate_Rahul.jpg');
+  const incomeJpgResult = await processDocumentFile({
+    path: sampleJpgPath,
+    mimetype: 'image/jpeg',
+    originalname: 'Synthetic_Income_Certificate_Rahul.jpg',
+    size: fs.statSync(sampleJpgPath).size,
+  }, 'INCOME_CERTIFICATE');
+
+  console.log('Parsed Income JPG Data:');
+  console.log(' - Candidate Name:', incomeJpgResult.extractedData.candidateName);
+  console.log(' - Date of Birth:', incomeJpgResult.extractedData.dateOfBirth);
+  console.log(' - Issue Date:', incomeJpgResult.extractedData.issueDate);
+  console.log(' - Readable:', incomeJpgResult.extractedData.isReadable);
+  console.assert(incomeJpgResult.extractedData.isReadable === true, 'JPG scan should be readable');
+  console.assert(incomeJpgResult.extractedData.candidateName === 'Rahul Sharma', 'Name should be Rahul Sharma');
+  console.assert(incomeJpgResult.extractedData.dateOfBirth === '12/05/2004', 'DOB should be 12/05/2004');
+  console.log('✓ TEST 7 PASSED: PNG and JPG OCR extraction successfully parsed real synthetic images.\n');
+
   console.log('====================================================');
-  console.log('🎉 ALL 6 CORE TESTS PASSED WITH 100% SUCCESS!');
+  console.log('🎉 ALL 7 CORE TESTS PASSED WITH 100% SUCCESS!');
   console.log('====================================================\n');
 }
 

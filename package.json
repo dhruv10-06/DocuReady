@@ -8,7 +8,12 @@
     "client": "npm --prefix client run dev",
     "build:client": "npm --prefix client run build",
     "dev": "concurrently \"node server/index.js\" \"npm --prefix client run dev\"",
-    "test": "node server/test/direct-audit.test.js"
+    "test": "node server/test/direct-audit.test.js",
+    "test:e2e": "node server/test/e2e-audit.test.js",
+    "test:security": "node server/test/security.test.js",
+    "test:persistence": "node server/test/persistence.test.js",
+    "test:journey": "node server/test/journey.test.js",
+    "test:all": "node server/test/direct-audit.test.js && node server/test/e2e-audit.test.js && node server/test/security.test.js && node server/test/persistence.test.js && node server/test/journey.test.js"
   },
   "keywords": [
     "audit",
